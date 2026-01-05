@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+      "target": "es2016",                              /* 出力するJavaScriptのバージョン */
+      "module": "ESNext",                               /* ESNextモジュール形式 */
+      "moduleResolution": "node",                       /* Nodeのモジュール解決方式 */
+      "outDir": ".",                               /* 出力先ディレクトリ */
+      "esModuleInterop": true,                          /* CommonJSモジュールとの互換性を保つ */
+      "strict": true,                                   /* 厳格な型チェックを有効化 */
+      "forceConsistentCasingInFileNames": true,         /* インポート時の大文字小文字の整合性 */
+      "skipLibCheck": true,                             /* ライブラリの型チェックをスキップ */
+      "allowJs": true,                                  /* JavaScriptファイルのコンパイルを許可 */
+      "declaration": true,                              /* 型定義ファイル (.d.ts) を生成 */
+      "sourceMap": true,                                /* ソースマップを生成 */
+      "removeComments": true,                            /* コメントを削除 */
+      "noEmitOnError": false
+    },
+    "include": [
+      "*.ts"
+    ],
+    "exclude": [
+      "node_modules"
+    ]
+  }
+  
+  
