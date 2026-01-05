@@ -2777,58 +2777,107 @@ class PreLoader{
 
 
 
+
+
 class App{
-    GEO_DATA!       : object;
-    CURRENT_POINT!  : any;
-    KOAZA!          : string;
-    previousKoaza!  : string;
+    GEO_DATA!               : object;
+    CURRENT_POINT!          : any;
+    OoazaAndKoaza!          : string;
+    previousKoaza!          : string;
+    cityName!               : string;
+    previousCityName!       : string;
+    prefName!               : string;
+    previousPrefName!       : string;
+    lastLoadCityCodeTime!   : number;
+
+    cnt : number;
 
     constructor(){
-        
+        this.cnt = 0;
+        this.lastLoadCityCodeTime = Date.now() - 60*60*1000;
         this.init();
     }
 
     async init(){
-        await this.loadGeoData();
 
         await this.initAfterAndGetCurrentPosition();
+
+        setInterval(() => {
+                this.initAfterAndGetCurrentPosition();
+        }, 1000);
        
     }
 
-    async loadGeoData(){
-        const RESPONSE = await fetch("turuoka.json")
-        this.GEO_DATA = await RESPONSE.json();
+
+    async getCityCode(lat : number , lng : number):Promise<string>{
+        const url = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lng}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        this.cnt += 1;
+        console.log(`fetch counter : ${this.cnt}`);
+        // チェック：結果が存在するか確認
+        if (data && data.results) {
+            // results はオブジェクト（あるいは配列のような構造）なので、
+            // 一般的には data.results.muniCode でアクセスできますが、
+            // 念のため data.results をコンソールで確認してください。
+            // console.log("取得データ:", data.results);
+
+           
+        
+            return data.results.muniCd; // 06203 などが返ります
+        }
+        
+        return "";
     }
+    async loadGeoData(CITY_CODE : string){
+        const RESPONSE = await fetch(`${CITY_CODE}.json`)
+        this.GEO_DATA = await RESPONSE.json();
+        // console.log(this.GEO_DATA);
+    }
+    isOkToLoadCityCode(){//０．５秒ごとにロードしていたら、chromeがむり！！！ってエラー吐いたので1分毎にする。
+        if(Date.now() - this.lastLoadCityCodeTime  > 1*10*1000){
+            return true;
+        }else{
+            return false;
+        }
+
+    }
+
+
 
     async initAfterAndGetCurrentPosition(){
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { longitude, latitude } = position.coords;
             this.CURRENT_POINT = turf.point([longitude, latitude]);
-            // console.log(this.CURRENT_POINT);
 
-            // console.log(this.GEO_DATA)
-            // alert(`Longitude : ${this.CURRENT_POINT.geometry.coordinates[0]},latitude : ${this.CURRENT_POINT.geometry.coordinates[1]}`);
-          
+            if(this.isOkToLoadCityCode()){
+                const CITY_CODE =  await this.getCityCode(latitude,longitude);
+                if(CITY_CODE === ""){
+                    // skip
+                }else{
+                    this.loadGeoData(CITY_CODE);
+                }
+                this.lastLoadCityCodeTime = Date.now();
+            }
+
+            // console.log(this.GEO_DATA);
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
             //以下　await 後のプロセス
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝ 
-            setInterval(() => {
-                this.judgeWhichKoaza();
-                this.Announce();
-                this.DisplayInfo();
-            }, 1000);
+            this.getCityOoazaKoazaName();
+            this.Announce();
+            this.DisplayInfo();
 
-            // const names = [...new Set(this.GEO_DATA.features.map(f => f.properties.S_NAME))];
-            // console.log(names.join('\n'));
 
         })
     }
 
-    judgeWhichKoaza() {
+    getCityOoazaKoazaName() {
         if (!this.GEO_DATA) return;
 
         let minDistance = Infinity;
-        let closestKoaza = "判定中...";
+        let closestOoazaAndKoaza = "判定中...";
 
         // 現在地の座標を取り出す
         const userLng = this.CURRENT_POINT.geometry.coordinates[0];
@@ -2836,6 +2885,7 @@ class App{
 
         turf.featureEach(this.GEO_DATA, (feature: any) => {
             const props = feature.properties;
+         
             
             // X_CODE と Y_CODE が存在するかチェック
             if (props.X_CODE && props.Y_CODE) {
@@ -2848,23 +2898,34 @@ class App{
                 // 一番近い町を更新していく
                 if (distanceSq < minDistance) {
                     minDistance = distanceSq;
-                    closestKoaza = props.S_NAME;
+                    closestOoazaAndKoaza = props.S_NAME;
                 }
             }
+
+             this.OoazaAndKoaza = closestOoazaAndKoaza;
+             this.cityName      = props.CITY_NAME;
+             this.prefName      = props.PREF_NAME;
         });
 
-        this.KOAZA = closestKoaza;
-        // console.log("最も近い地点:", this.KOAZA);
+       
+        // console.log("最も近い地点:", this.OoazaAndKoaza);
     }
 
-    isKoazaSame() : boolean{
-        return this.KOAZA === this.previousKoaza ? true : false;
+
+    isOoazaAndKoazaSame() : boolean{
+        return this.OoazaAndKoaza === this.previousKoaza ? true : false;
+    }
+    isCityNameSame() : boolean{
+        return this.cityName === this.previousCityName ? true : false;
+    }
+    isPrefNameSame() : boolean{
+        return this.prefName === this.previousPrefName ? true : false;
     }
 
     Announce(){
-        if(this.isKoazaSame()){
+        if(this.isOoazaAndKoazaSame()){
             // skip
-            console.log("in announce false :skip")
+            // console.log("in announce false :skip")
         }else{
             window.speechSynthesis.cancel();
 
@@ -2872,19 +2933,49 @@ class App{
             UTTR.lang = "ja-JP";
             UTTR.rate = 0.8;
             UTTR.pitch = 1.0;
-            console.log("in anouunce true")
+            // console.log("in anouunce true")
             window.speechSynthesis.speak(UTTR);
 
-            this.previousKoaza = this.KOAZA;
+            this.previousKoaza = this.OoazaAndKoaza;
+
+            this.addHistoryLog();
         }
     }
 
     writeAnnounceContent(){
-        const SPLIT_DATA = this.KOAZA.split("字");
-        const OOAZA      = SPLIT_DATA[0];
-        const KOAZA      = SPLIT_DATA[1];
 
-        return `げんざい、${OOAZA}、、、、　あざ、、、、　${KOAZA}。${OOAZA}　の、、、、、、、、、　${KOAZA}にはいりました。繰り返します。　、、、、、、、げんざい、${OOAZA}、、、、　あざ、、、、　${KOAZA}。${OOAZA}　の、、、、、、、、、　${KOAZA}にはいりました。`
+        const SPLIT_DATA    = this.OoazaAndKoaza.split("字");
+        const OOAZA         = SPLIT_DATA[0];
+        var   koaza         = SPLIT_DATA[1];
+        if(koaza === undefined){
+            koaza = "";
+        }
+        const REST_CONNMA   = "、、、、、、";
+        var ooazaAndKoaza : string[]= ["",""];
+        if(koaza){
+            ooazaAndKoaza[0] = `${OOAZA}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`
+            ooazaAndKoaza[1] = `${OOAZA}の${REST_CONNMA}${koaza}`
+        }else{
+            ooazaAndKoaza[0] = `${OOAZA}${REST_CONNMA}`
+            ooazaAndKoaza[1] = `${OOAZA}`
+        }
+
+
+        if(this.isPrefNameSame() && this.isCityNameSame()){
+            const RAW_CONTENT =  `げんざい、${ooazaAndKoaza[0]}。${ooazaAndKoaza[1]}にはいりました。`
+            return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
+        }else if(this.isPrefNameSame() === false){
+            this.previousPrefName = this.prefName;
+            this.previousCityName = this.cityName;
+
+            const RAW_CONTENT =  `げんざい、${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}。${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
+        }else if(this.isCityNameSame() === false){
+            const RAW_CONTENT =  `げんざい、${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}。${this.cityName}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
+        }
+
+
     }
 
     DisplayInfo(){
@@ -2892,9 +2983,16 @@ class App{
         const LONGITUDE_DISPLAY     = document.getElementById("lng-val")        as HTMLDivElement; // 経度
         const LATITUDE_DISPLAY      = document.getElementById("lat-val")        as HTMLDivElement; // 緯度
 
-        CURRENT_KOAZA_DISPLAY.innerHTML = this.KOAZA;
+        CURRENT_KOAZA_DISPLAY.innerHTML = `${this.prefName} ${this.cityName}<br>${this.OoazaAndKoaza}`;
         LONGITUDE_DISPLAY.innerHTML     = this.CURRENT_POINT.geometry.coordinates[0];
         LATITUDE_DISPLAY.innerHTML      = this.CURRENT_POINT.geometry.coordinates[1];
+    }
+
+    addHistoryLog(){
+        const log = document.getElementById('history-log');
+        const li = document.createElement('li');
+        li.innerText = `${new Date().toLocaleTimeString()} - ${this.prefName} ${this.cityName} ${this.OoazaAndKoaza}`;
+        log?.prepend(li);
     }
 }
 
