@@ -1600,9 +1600,11 @@ class App {
             navigator.geolocation.getCurrentPosition((position) => __awaiter(this, void 0, void 0, function* () {
                 const { longitude, latitude } = position.coords;
                 this.CURRENT_POINT = turf.point([longitude, latitude]);
-                console.log(`long : ${longitude}, lat : ${latitude}`);
-                this.judgeWhichKoaza();
-                alert(`I am in ${this.KOAZA}.`);
+                setInterval(() => {
+                    this.judgeWhichKoaza();
+                    this.Announce();
+                    this.DisplayInfo();
+                }, 1000);
             }));
         });
     }
@@ -1626,8 +1628,42 @@ class App {
             }
         });
         this.KOAZA = closestKoaza;
-        console.log("最も近い地点:", this.KOAZA);
+    }
+    isKoazaSame() {
+        return this.KOAZA === this.previousKoaza ? true : false;
+    }
+    Announce() {
+        if (this.isKoazaSame()) {
+            console.log("in announce false :skip");
+        }
+        else {
+            window.speechSynthesis.cancel();
+            const UTTR = new SpeechSynthesisUtterance(this.writeAnnounceContent());
+            UTTR.lang = "ja-JP";
+            UTTR.rate = 0.8;
+            UTTR.pitch = 1.0;
+            console.log("in anouunce true");
+            window.speechSynthesis.speak(UTTR);
+            this.previousKoaza = this.KOAZA;
+        }
+    }
+    writeAnnounceContent() {
+        const SPLIT_DATA = this.KOAZA.split("字");
+        const OOAZA = SPLIT_DATA[0];
+        const KOAZA = SPLIT_DATA[1];
+        return `げんざい、${OOAZA}、、、、　あざ、、、、　${KOAZA}。${OOAZA}　の、、、、、、、、、　${KOAZA}にはいりました。繰り返します。　、、、、、、、げんざい、${OOAZA}、、、、　あざ、、、、　${KOAZA}。${OOAZA}　の、、、、、、、、、　${KOAZA}にはいりました。`;
+    }
+    DisplayInfo() {
+        const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza");
+        const LONGITUDE_DISPLAY = document.getElementById("lng-val");
+        const LATITUDE_DISPLAY = document.getElementById("lat-val");
+        CURRENT_KOAZA_DISPLAY.innerHTML = this.KOAZA;
+        LONGITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[0];
+        LATITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[1];
     }
 }
-const APP = new App();
+const APP_START_BTN = document.getElementById("startBtn");
+APP_START_BTN.addEventListener("click", () => {
+    const APP = new App();
+});
 //# sourceMappingURL=map.js.map

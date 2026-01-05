@@ -2778,11 +2778,13 @@ class PreLoader{
 
 
 class App{
-    GEO_DATA! : object;
-    CURRENT_POINT! : any;
-    KOAZA!   : string;
+    GEO_DATA!       : object;
+    CURRENT_POINT!  : any;
+    KOAZA!          : string;
+    previousKoaza!  : string;
 
     constructor(){
+        
         this.init();
     }
 
@@ -2804,15 +2806,20 @@ class App{
             this.CURRENT_POINT = turf.point([longitude, latitude]);
             // console.log(this.CURRENT_POINT);
 
-            console.log(`long : ${longitude}, lat : ${latitude}`);
+            // console.log(this.GEO_DATA)
             // alert(`Longitude : ${this.CURRENT_POINT.geometry.coordinates[0]},latitude : ${this.CURRENT_POINT.geometry.coordinates[1]}`);
           
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
             //以下　await 後のプロセス
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝ 
-            this.judgeWhichKoaza();
+            setInterval(() => {
+                this.judgeWhichKoaza();
+                this.Announce();
+                this.DisplayInfo();
+            }, 1000);
 
-            alert(`I am in ${this.KOAZA}.`)
+            // const names = [...new Set(this.GEO_DATA.features.map(f => f.properties.S_NAME))];
+            // console.log(names.join('\n'));
 
         })
     }
@@ -2847,10 +2854,52 @@ class App{
         });
 
         this.KOAZA = closestKoaza;
-        console.log("最も近い地点:", this.KOAZA);
+        // console.log("最も近い地点:", this.KOAZA);
+    }
+
+    isKoazaSame() : boolean{
+        return this.KOAZA === this.previousKoaza ? true : false;
+    }
+
+    Announce(){
+        if(this.isKoazaSame()){
+            // skip
+            console.log("in announce false :skip")
+        }else{
+            window.speechSynthesis.cancel();
+
+            const UTTR = new SpeechSynthesisUtterance(this.writeAnnounceContent());
+            UTTR.lang = "ja-JP";
+            UTTR.rate = 0.8;
+            UTTR.pitch = 1.0;
+            console.log("in anouunce true")
+            window.speechSynthesis.speak(UTTR);
+
+            this.previousKoaza = this.KOAZA;
+        }
+    }
+
+    writeAnnounceContent(){
+        const SPLIT_DATA = this.KOAZA.split("字");
+        const OOAZA      = SPLIT_DATA[0];
+        const KOAZA      = SPLIT_DATA[1];
+
+        return `げんざい、${OOAZA}、、、、　あざ、、、、　${KOAZA}。${OOAZA}　の、、、、、、、、、　${KOAZA}にはいりました。繰り返します。　、、、、、、、げんざい、${OOAZA}、、、、　あざ、、、、　${KOAZA}。${OOAZA}　の、、、、、、、、、　${KOAZA}にはいりました。`
+    }
+
+    DisplayInfo(){
+        const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza")  as HTMLDivElement;
+        const LONGITUDE_DISPLAY     = document.getElementById("lng-val")        as HTMLDivElement; // 経度
+        const LATITUDE_DISPLAY      = document.getElementById("lat-val")        as HTMLDivElement; // 緯度
+
+        CURRENT_KOAZA_DISPLAY.innerHTML = this.KOAZA;
+        LONGITUDE_DISPLAY.innerHTML     = this.CURRENT_POINT.geometry.coordinates[0];
+        LATITUDE_DISPLAY.innerHTML      = this.CURRENT_POINT.geometry.coordinates[1];
     }
 }
 
 
-const APP = new App();
-
+const APP_START_BTN = document.getElementById("startBtn") as HTMLElement;
+APP_START_BTN.addEventListener("click",()=>{
+    const APP = new App();
+})

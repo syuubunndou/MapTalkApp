@@ -9,6 +9,43 @@
     </head>
 
     <body>
+
+        <div id="app-container">
+            <header>
+                <div class="logo">KOAZA <span>Navi</span></div>
+                <div id="gps-status" class="status-offline">GPS待機中</div>
+            </header>
+
+            <main>
+                <div class="card">
+                    <p class="label">現在の小字付近</p>
+                    <div id="current-koaza" class="koaza-display">---</div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">経度</span>
+                        <span id="lng-val">---</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">緯度</span>
+                        <span id="lat-val">---</span>
+                    </div>
+                </div>
+
+                <div class="log-container">
+                    <p class="label">履歴</p>
+                    <ul id="history-log">
+                        <li>ナビを開始してください</li>
+                    </ul>
+                </div>
+            </main>
+
+            <footer>
+                <button id="startBtn" class="primary-btn">ナビゲーションを開始</button>
+            </footer>
+        </div>
+
         <script type="module" src="map.js"></script>
     </body>    
     
