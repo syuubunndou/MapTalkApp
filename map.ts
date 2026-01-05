@@ -2780,6 +2780,7 @@ class PreLoader{
 class App{
     GEO_DATA! : object;
     CURRENT_POINT! : any;
+    KOAZA!   : string;
 
     constructor(){
         this.init();
@@ -2803,12 +2804,53 @@ class App{
             this.CURRENT_POINT = turf.point([longitude, latitude]);
             // console.log(this.CURRENT_POINT);
 
+            console.log(`long : ${longitude}, lat : ${latitude}`);
+            // alert(`Longitude : ${this.CURRENT_POINT.geometry.coordinates[0]},latitude : ${this.CURRENT_POINT.geometry.coordinates[1]}`);
+          
+            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+            //以下　await 後のプロセス
+            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝ 
+            this.judgeWhichKoaza();
 
-            alert(`Longitude : ${this.CURRENT_POINT.geometry.coordinates[0]},latitude : ${this.CURRENT_POINT.geometry.coordinates[1]}`);
-    
+            alert(`I am in ${this.KOAZA}.`)
+
         })
     }
+
+    judgeWhichKoaza() {
+        if (!this.GEO_DATA) return;
+
+        let minDistance = Infinity;
+        let closestKoaza = "判定中...";
+
+        // 現在地の座標を取り出す
+        const userLng = this.CURRENT_POINT.geometry.coordinates[0];
+        const userLat = this.CURRENT_POINT.geometry.coordinates[1];
+
+        turf.featureEach(this.GEO_DATA, (feature: any) => {
+            const props = feature.properties;
+            
+            // X_CODE と Y_CODE が存在するかチェック
+            if (props.X_CODE && props.Y_CODE) {
+                // 現在地と、各町の代表地点(X_CODE, Y_CODE)の距離を計算
+                // ※簡易的な計算式ですが、小字レベルなら十分です
+                const dx = userLng - props.X_CODE;
+                const dy = userLat - props.Y_CODE;
+                const distanceSq = dx * dx + dy * dy; // 距離の2乗
+
+                // 一番近い町を更新していく
+                if (distanceSq < minDistance) {
+                    minDistance = distanceSq;
+                    closestKoaza = props.S_NAME;
+                }
+            }
+        });
+
+        this.KOAZA = closestKoaza;
+        console.log("最も近い地点:", this.KOAZA);
+    }
 }
+
 
 const APP = new App();
 

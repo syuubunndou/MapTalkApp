@@ -1600,9 +1600,33 @@ class App {
             navigator.geolocation.getCurrentPosition((position) => __awaiter(this, void 0, void 0, function* () {
                 const { longitude, latitude } = position.coords;
                 this.CURRENT_POINT = turf.point([longitude, latitude]);
-                alert(`Longitude : ${this.CURRENT_POINT.geometry.coordinates[0]},latitude : ${this.CURRENT_POINT.geometry.coordinates[1]}`);
+                console.log(`long : ${longitude}, lat : ${latitude}`);
+                this.judgeWhichKoaza();
+                alert(`I am in ${this.KOAZA}.`);
             }));
         });
+    }
+    judgeWhichKoaza() {
+        if (!this.GEO_DATA)
+            return;
+        let minDistance = Infinity;
+        let closestKoaza = "判定中...";
+        const userLng = this.CURRENT_POINT.geometry.coordinates[0];
+        const userLat = this.CURRENT_POINT.geometry.coordinates[1];
+        turf.featureEach(this.GEO_DATA, (feature) => {
+            const props = feature.properties;
+            if (props.X_CODE && props.Y_CODE) {
+                const dx = userLng - props.X_CODE;
+                const dy = userLat - props.Y_CODE;
+                const distanceSq = dx * dx + dy * dy;
+                if (distanceSq < minDistance) {
+                    minDistance = distanceSq;
+                    closestKoaza = props.S_NAME;
+                }
+            }
+        });
+        this.KOAZA = closestKoaza;
+        console.log("最も近い地点:", this.KOAZA);
     }
 }
 const APP = new App();
