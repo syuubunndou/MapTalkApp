@@ -2776,6 +2776,18 @@ class PreLoader{
 }
 
 
+const CONFIG =  {
+    apiKey: "AIzaSyC04Rv-MGUkB4nUve3-_7XA_p6HHQrheFs",
+    authDomain: "mapannounce.firebaseapp.com",
+    projectId: "mapannounce",
+    storageBucket: "mapannounce.firebasestorage.app",
+    messagingSenderId: "730228875368",
+    appId: "1:730228875368:web:0d4f7298ca10c219c95bdd",
+    measurementId: "G-VTKN7RZ6XT"
+};
+const FIREBASE_FUNCTION = new FirebaseFunctions(CONFIG,false);
+
+
 
 
 
@@ -2789,10 +2801,16 @@ class App{
     prefName!               : string;
     previousPrefName!       : string;
     lastLoadCityCodeTime!   : number;
+    APP_START_TIME          : number;
+
+    FIREBASE_FUNCTION       : FirebaseFunctions;
 
     cnt : number;
 
-    constructor(){
+    constructor(FIREBASE_FUNCTION : FirebaseFunctions){
+        this.APP_START_TIME = Date.now();
+
+        this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
         this.cnt = 0;
         this.lastLoadCityCodeTime = Date.now() - 60*60*1000;
         this.init();
@@ -2802,11 +2820,14 @@ class App{
 
         await this.initAfterAndGetCurrentPosition();
 
+
+
         setInterval(() => {
                 this.initAfterAndGetCurrentPosition();
         }, 1000);
        
     }
+
 
 
     async getCityCode(lat : number , lng : number):Promise<string>{
@@ -2989,15 +3010,141 @@ class App{
     }
 
     addHistoryLog(){
-        const log = document.getElementById('history-log');
+        const LOG = document.getElementById('history-log') as HTMLElement;
         const li = document.createElement('li');
         li.innerText = `${new Date().toLocaleTimeString()} - ${this.prefName} ${this.cityName} ${this.OoazaAndKoaza}`;
-        log?.prepend(li);
+        LOG?.prepend(li);
+
+        this.sendHistoryLogToFirebase();
     }
+    sendHistoryLogToFirebase(){
+        const LOG = document.getElementById('history-log') as HTMLElement;
+        this.FIREBASE_FUNCTION.uploadData(`yamato/history/${this.APP_START_TIME}`,LOG.innerHTML);
+        
+    }
+
+
+
+}
+
+class History{
+    FIREBASE_FUNCTION : FirebaseFunctions;
+
+    constructor(FIREBASE_FUNCTION :FirebaseFunctions){  
+        this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
+        this.attachEvents();
+
+        this.init();
+    }
+
+    attachEvents(){
+        const SHOW_HISTORY_BTN = document.getElementById("historyBtn") as HTMLElement;
+            SHOW_HISTORY_BTN.addEventListener("click",()=>{
+                this.openHistoryLogModal();
+            })
+
+        const CLOSE_HISTORY_BTN = document.getElementById("closeBtn") as HTMLElement;
+        CLOSE_HISTORY_BTN.addEventListener("click",()=>{
+            this.closeHistoryModal();
+        })
+    }
+
+
+    async init(){
+        const ALL_DATA_RECORD =  await this.loadAllHistory();
+        this.displayHistorySections(ALL_DATA_RECORD);
+    
+
+    }
+    async loadAllHistory(){
+        const DATA = await this.FIREBASE_FUNCTION.downloadData("yamato/history");
+        const TIMESTAMPS =Object.keys(DATA);
+        const NEW_RECORD  : Record<string,string>= {};
+
+            // タイムスタンプ（キー）を数値としてソート（降順：新しい順）
+        const SORTED_KEYS = Object.keys(DATA).sort((a, b) => {
+                return parseInt(b) - parseInt(a);
+            });
+
+            SORTED_KEYS.forEach(ts => {
+                // 日時をキー名にする（例: "2026/1/6 12:21:32"）
+                const dateKey = new Date(parseInt(ts)).toLocaleString();
+
+                try {
+                    // 文字列化されたJSONを配列に戻す
+                    const dataArray = JSON.parse(DATA[ts]);
+                    // 配列の1番目（HTMLContent）を取得
+                    const htmlContent = dataArray[1];
+
+                    // 新しいRecordに格納
+                    NEW_RECORD[dateKey] = htmlContent;
+                } catch (e) {
+                    console.error(`解析エラー: ${ts}`, e);
+                }
+            });
+
+            return NEW_RECORD;
+    }
+    displayHistorySections(ALL_DATA_RECORD : Record<string,string>){
+        Object.entries(ALL_DATA_RECORD).forEach(([dateKey,htmlContent])=>{
+            const LIST = this.createList(dateKey);
+            this.attachOnClickEvent(LIST,htmlContent);
+
+            const INDEX_Ul = document.getElementById('history-index') as HTMLElement;
+            INDEX_Ul.appendChild(LIST);
+
+        })
+    }
+
+    createList(dateKey : string){
+        const LIST = document.createElement(`li`);
+
+        LIST.innerHTML = `
+        <div class="history-header">
+            <span class="calendar-icon">📅</span>
+            <span class="date-text">${dateKey}</span>
+        </div>
+        `;
+
+        LIST.className = "history-summary-item";
+
+        return LIST;
+    }
+
+    attachOnClickEvent(LIST : HTMLElement, HTML_CONTENT : string){
+        LIST.onclick = () =>{
+            const PREVIEW_Ul = document.getElementById('history-log-preview') as HTMLElement;
+            PREVIEW_Ul.innerHTML = HTML_CONTENT;
+
+            const INDEX_Ul = document.getElementById('history-index') as HTMLElement;
+            Array.from(INDEX_Ul.children).forEach(el => el.classList.remove("is-active"));
+            LIST.classList.add("is-active");
+
+            PREVIEW_Ul.scrollIntoView({behavior : "smooth", block : "nearest"});
+        }
+    }
+
+
+
+
+    openHistoryLogModal(){
+        const MODAL = document.getElementById("history-overlay") as HTMLElement;
+        MODAL.style.display = "block";
+    }
+
+    closeHistoryModal(){
+        const MODAL = document.getElementById("history-overlay") as HTMLElement;
+        MODAL.style.display = "none";
+    }
+
+
 }
 
 
 const APP_START_BTN = document.getElementById("startBtn") as HTMLElement;
 APP_START_BTN.addEventListener("click",()=>{
-    const APP = new App();
+    const APP = new App(FIREBASE_FUNCTION);
 })
+const HISTORY = new History(FIREBASE_FUNCTION);
+
+

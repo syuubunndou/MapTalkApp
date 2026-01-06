@@ -1579,8 +1579,20 @@ _PreLoader_instances = new WeakSet(), _PreLoader_startAutoCloseSelfTimerMonitor 
         return STATUS === "readyToClose" ? true : false;
     });
 };
+const CONFIG = {
+    apiKey: "AIzaSyC04Rv-MGUkB4nUve3-_7XA_p6HHQrheFs",
+    authDomain: "mapannounce.firebaseapp.com",
+    projectId: "mapannounce",
+    storageBucket: "mapannounce.firebasestorage.app",
+    messagingSenderId: "730228875368",
+    appId: "1:730228875368:web:0d4f7298ca10c219c95bdd",
+    measurementId: "G-VTKN7RZ6XT"
+};
+const FIREBASE_FUNCTION = new FirebaseFunctions(CONFIG, false);
 class App {
-    constructor() {
+    constructor(FIREBASE_FUNCTION) {
+        this.APP_START_TIME = Date.now();
+        this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
         this.cnt = 0;
         this.lastLoadCityCodeTime = Date.now() - 60 * 60 * 1000;
         this.init();
@@ -1727,14 +1739,102 @@ class App {
         LATITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[1];
     }
     addHistoryLog() {
-        const log = document.getElementById('history-log');
+        const LOG = document.getElementById('history-log');
         const li = document.createElement('li');
         li.innerText = `${new Date().toLocaleTimeString()} - ${this.prefName} ${this.cityName} ${this.OoazaAndKoaza}`;
-        log === null || log === void 0 ? void 0 : log.prepend(li);
+        LOG === null || LOG === void 0 ? void 0 : LOG.prepend(li);
+        this.sendHistoryLogToFirebase();
+    }
+    sendHistoryLogToFirebase() {
+        const LOG = document.getElementById('history-log');
+        this.FIREBASE_FUNCTION.uploadData(`yamato/history/${this.APP_START_TIME}`, LOG.innerHTML);
+    }
+}
+class History {
+    constructor(FIREBASE_FUNCTION) {
+        this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
+        this.attachEvents();
+        this.init();
+    }
+    attachEvents() {
+        const SHOW_HISTORY_BTN = document.getElementById("historyBtn");
+        SHOW_HISTORY_BTN.addEventListener("click", () => {
+            this.openHistoryLogModal();
+        });
+        const CLOSE_HISTORY_BTN = document.getElementById("closeBtn");
+        CLOSE_HISTORY_BTN.addEventListener("click", () => {
+            this.closeHistoryModal();
+        });
+    }
+    init() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const ALL_DATA_RECORD = yield this.loadAllHistory();
+            this.displayHistorySections(ALL_DATA_RECORD);
+        });
+    }
+    loadAllHistory() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const DATA = yield this.FIREBASE_FUNCTION.downloadData("yamato/history");
+            const TIMESTAMPS = Object.keys(DATA);
+            const NEW_RECORD = {};
+            const SORTED_KEYS = Object.keys(DATA).sort((a, b) => {
+                return parseInt(b) - parseInt(a);
+            });
+            SORTED_KEYS.forEach(ts => {
+                const dateKey = new Date(parseInt(ts)).toLocaleString();
+                try {
+                    const dataArray = JSON.parse(DATA[ts]);
+                    const htmlContent = dataArray[1];
+                    NEW_RECORD[dateKey] = htmlContent;
+                }
+                catch (e) {
+                    console.error(`解析エラー: ${ts}`, e);
+                }
+            });
+            return NEW_RECORD;
+        });
+    }
+    displayHistorySections(ALL_DATA_RECORD) {
+        Object.entries(ALL_DATA_RECORD).forEach(([dateKey, htmlContent]) => {
+            const LIST = this.createList(dateKey);
+            this.attachOnClickEvent(LIST, htmlContent);
+            const INDEX_Ul = document.getElementById('history-index');
+            INDEX_Ul.appendChild(LIST);
+        });
+    }
+    createList(dateKey) {
+        const LIST = document.createElement(`li`);
+        LIST.innerHTML = `
+        <div class="history-header">
+            <span class="calendar-icon">📅</span>
+            <span class="date-text">${dateKey}</span>
+        </div>
+        `;
+        LIST.className = "history-summary-item";
+        return LIST;
+    }
+    attachOnClickEvent(LIST, HTML_CONTENT) {
+        LIST.onclick = () => {
+            const PREVIEW_Ul = document.getElementById('history-log-preview');
+            PREVIEW_Ul.innerHTML = HTML_CONTENT;
+            const INDEX_Ul = document.getElementById('history-index');
+            Array.from(INDEX_Ul.children).forEach(el => el.classList.remove("is-active"));
+            LIST.classList.add("is-active");
+            PREVIEW_Ul.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        };
+    }
+    openHistoryLogModal() {
+        const MODAL = document.getElementById("history-overlay");
+        MODAL.style.display = "block";
+    }
+    closeHistoryModal() {
+        const MODAL = document.getElementById("history-overlay");
+        MODAL.style.display = "none";
     }
 }
 const APP_START_BTN = document.getElementById("startBtn");
 APP_START_BTN.addEventListener("click", () => {
-    const APP = new App();
+    const APP = new App(FIREBASE_FUNCTION);
 });
+const HISTORY = new History(FIREBASE_FUNCTION);
 //# sourceMappingURL=map.js.map
