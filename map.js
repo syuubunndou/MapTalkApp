@@ -1765,7 +1765,7 @@ class App {
     addHistoryLog() {
         const LOG = document.getElementById('history-log');
         const li = document.createElement('li');
-        li.innerText = `${new Date().toLocaleTimeString()} - ${this.prefName} ${this.cityName} ${this.OoazaAndKoaza}`;
+        li.innerText = `${new Date().toLocaleTimeString()} - ${this.prefName} ${this.cityName} ${this.OoazaAndKoaza}/n 経度 ${this.CURRENT_POINT.geometry.coordinates[0]} 緯度${this.CURRENT_POINT.geometry.coordinates[1]}`;;
         LOG === null || LOG === void 0 ? void 0 : LOG.prepend(li);
         this.sendHistoryLogToFirebase();
     }
@@ -1833,6 +1833,7 @@ class History {
             <span class="calendar-icon">📅</span>
             <span class="date-text">${dateKey}</span>
         </div>
+
         `;
         LIST.className = "history-summary-item";
         return LIST;
