@@ -2949,8 +2949,9 @@ class App{
             // console.log("in announce false :skip")
         }else{
             window.speechSynthesis.cancel();
-
-            const UTTR = new SpeechSynthesisUtterance(this.writeAnnounceContent());
+            const CONTENT = this.writeAnnounceContent();
+            console.log(CONTENT);
+            const UTTR = new SpeechSynthesisUtterance(CONTENT);
             UTTR.lang = "ja-JP";
             UTTR.rate = 0.8;
             UTTR.pitch = 1.0;
@@ -2965,36 +2966,68 @@ class App{
 
     writeAnnounceContent(){
 
-        const SPLIT_DATA    = this.OoazaAndKoaza.split("字");
-        const OOAZA         = SPLIT_DATA[0];
-        var   koaza         = SPLIT_DATA[1];
-        if(koaza === undefined){
-            koaza = "";
-        }
+        console.log(`pref flg : [${this.isPrefNameSame()}] and city flg : [${this.isCityNameSame()}]`)
+        
         const REST_CONNMA   = "、、、、、、";
-        var ooazaAndKoaza : string[]= ["",""];
-        if(koaza){
-            ooazaAndKoaza[0] = `${OOAZA}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`
-            ooazaAndKoaza[1] = `${OOAZA}の${REST_CONNMA}${koaza}`
+
+        if(this.OoazaAndKoaza.includes("大字")){
+            const RAW_DATA = this.OoazaAndKoaza.replace("大字","")
+            const SPLIT_DATA = RAW_DATA.split("字");
+            console.log(SPLIT_DATA);
+            var ooaza      = SPLIT_DATA[0]
+            var koaza      = SPLIT_DATA[1]
+            if(koaza === undefined){
+                koaza = "";
+            }
+
+        
+
+            var ooazaAndKoaza : string[]= ["",""];
+            if(koaza){
+                ooazaAndKoaza[0] = `おおあざ${REST_CONNMA}${ooaza}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`
+                ooazaAndKoaza[1] = `${ooaza}の${REST_CONNMA}${koaza}`
+            }else{
+                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}`
+                ooazaAndKoaza[1] = `${ooaza}`
+            }
+
         }else{
-            ooazaAndKoaza[0] = `${OOAZA}${REST_CONNMA}`
-            ooazaAndKoaza[1] = `${OOAZA}`
+            const SPLIT_DATA    = this.OoazaAndKoaza.split("字");
+            var   ooaza         = SPLIT_DATA[0];
+            var   koaza         = SPLIT_DATA[1];
+            if(koaza === undefined){
+                koaza = "";
+            }
+
+
+            var ooazaAndKoaza : string[]= ["",""];
+            if(koaza){
+                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`
+                ooazaAndKoaza[1] = `${ooaza}の${REST_CONNMA}${koaza}`
+            }else{
+                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}`
+                ooazaAndKoaza[1] = `${ooaza}`
+            }
         }
+        
+        
+
 
 
         if(this.isPrefNameSame() && this.isCityNameSame()){
-            const RAW_CONTENT =  `げんざい、${ooazaAndKoaza[0]}。${ooazaAndKoaza[1]}にはいりました。`
+            const RAW_CONTENT =  `げんざい、${this.OoazaAndKoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
             return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
         }else if(this.isPrefNameSame() === false){
             this.previousPrefName = this.prefName;
             this.previousCityName = this.cityName;
 
-            const RAW_CONTENT =  `げんざい、${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}。${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            const RAW_CONTENT =  `げんざい、${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${this.OoazaAndKoaza}。${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.prefName}${REST_CONNMA}${this.cityName}${ooazaAndKoaza[1]}にはいりました。`
             return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
         }else if(this.isCityNameSame() === false){
-            const RAW_CONTENT =  `げんざい、${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}。${this.cityName}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            const RAW_CONTENT =  `げんざい、${this.cityName}${REST_CONNMA}${this.OoazaAndKoaza}。${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
             return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
         }
+
 
 
     }
