@@ -14,12 +14,26 @@
             <header>
                 <div class="logo">KOAZA <span>Navi</span></div>
                 <div id="gps-status" class="status-offline">GPS待機中</div>
+                <div id="accuracy-display" style="font-size: 0.7rem; color: var(--secondary-text);">誤差: --m</div>
             </header>
 
             <main>
-                <div class="card">
-                    <p class="label">現在の小字付近</p>
-                    <div id="current-koaza" class="koaza-display">---</div>
+                <div class="card location-card">
+                    <div class="location-group current">
+                        <p class="label">📍 現在地点</p>
+                        <div id="current-koaza" class="koaza-display">---</div>
+                    </div>
+                    
+                    <div class="location-split">
+                        <div class="location-group left">
+                            <p class="label">⬅️ 左方面</p>
+                            <div id="left-koaza" class="koaza-display-sub">---</div>
+                        </div>
+                        <div class="location-group right">
+                            <p class="label">右方面 ➡️</p>
+                            <div id="right-koaza" class="koaza-display-sub">---</div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="info-grid">
@@ -62,6 +76,20 @@
                 <button id="startBtn" class="primary-btn">ナビゲーションを開始</button>
                             
                 <button id="historyBtn" class="primary-btn">過去の履歴を見る</button>
+            
+                <div class="card settings-card">
+                    <p class="label">⚙️ パラメータ設定</p>
+                    <div class="settings-grid">
+                        <div class="setting-item">
+                            <span class="info-label">精度閾値 (m)</span>
+                            <input type="number" id="threshold-input" value="100" min="10" max="1000">
+                        </div>
+                        <div class="setting-item">
+                            <span class="info-label">左右距離 (m)</span>
+                            <input type="number" id="distance-input" value="100" min="10" max="1000">
+                        </div>
+                    </div>
+                </div>
             </footer>
         </div>
 

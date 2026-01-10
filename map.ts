@@ -2792,16 +2792,38 @@ const FIREBASE_FUNCTION = new FirebaseFunctions(CONFIG,false);
 
 
 class App{
-    GEO_DATA!               : object;
+    CURRENT_GEO_DATA!       : object;
+    RIGHT_GEO_DATA!         : object;
+    LEFT_GEO_DATA!          : object;
+
     CURRENT_POINT!          : any;
-    OoazaAndKoaza!          : string;
-    previousKoaza!          : string;
-    cityName!               : string;
-    previousCityName!       : string;
-    prefName!               : string;
-    previousPrefName!       : string;
+    LEFT_POINT!             : any;
+    RIGHT_POINT!            : any;
+
+    currentKoazaOoaza!      : string;
+    leftKoazaOoaza!         : string;
+    rightKoazaOoaza!        : string;
+
+    previousKoaza!          : Record<string,string>;
+
+    current_cityName!       : string;
+    left_cityName!          : string;
+    right_cityName!         : string;
+
+    previousCityName!       : Record<string,string>;
+
+
+    current_prefName!       : string;
+    left_prefName!          : string;
+    right_prefName!         : string;
+
+    previousPrefName!       : Record<string,string>;
+
     lastLoadCityCodeTime!   : number;
     APP_START_TIME          : number;
+
+    lastLongitude!          : number;
+    lastLatitude!           : number;
 
     FIREBASE_FUNCTION       : FirebaseFunctions;
 
@@ -2813,6 +2835,15 @@ class App{
         this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
         this.cnt = 0;
         this.lastLoadCityCodeTime = Date.now() - 60*60*1000;
+
+        this.lastLatitude = 0;
+        this.lastLongitude = 0;
+
+        // Recordの初期化（各キーを空文字で埋める）
+        this.previousKoaza = { CURRENT: "", LEFT: "", RIGHT: "" };
+        this.previousCityName = { CURRENT: "", LEFT: "", RIGHT: "" };
+        this.previousPrefName = { CURRENT: "", LEFT: "", RIGHT: "" };
+
         this.init();
     }
 
@@ -2853,8 +2884,9 @@ class App{
     }
     async loadGeoData(CITY_CODE : string){
         const RESPONSE = await fetch(`${CITY_CODE}.json`)
-        this.GEO_DATA = await RESPONSE.json();
-        // console.log(this.GEO_DATA);
+        const DATA = await RESPONSE.json();
+        // console.log(this.CURRENT_GEO_DATA);
+        return DATA;
     }
     isOkToLoadCityCode(){//０．５秒ごとにロードしていたら、chromeがむり！！！ってエラー吐いたので1分毎にする。
         if(Date.now() - this.lastLoadCityCodeTime  > 1*10*1000){
@@ -2869,42 +2901,240 @@ class App{
 
     async initAfterAndGetCurrentPosition(){
         navigator.geolocation.getCurrentPosition(async (position) => {
-            const { longitude, latitude } = position.coords;
-            this.CURRENT_POINT = turf.point([longitude, latitude]);
+            this.updateGPS_AccuracyDisplay(position);
+            
+            if(this.isReliableGPS_Accuracy(position)){
+                // skip
+            }else{
+                return //処理を中断。信用ならないGPSは除外
+            }
+           
+            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+            // 前回のコード実行時の座標を保存　　　　　　　　　　　　　
+            const LAST_LONGITUDE = this.lastLongitude;          
+            const LAST_LATITUDE  = this.lastLatitude;
 
+            // 直前の座標を保存
+            var { longitude, latitude } = position.coords;
+            const CURRENT_LONGITUDE = longitude;
+            const CURRENT_LATITUDE  = latitude;
+            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+
+            // 左右の方向を計算・取得
+            const DIRECTION_RECORD          = this.calcDirectionSystem(CURRENT_LONGITUDE,CURRENT_LATITUDE,this.lastLongitude,this.lastLatitude);
+            // 現在地からDISTANCE（ｍ）分離れた左右地点の座標を取得
+            const DISTANCE_INPUT = document.getElementById("distance-input") as HTMLInputElement;
+            const OFFSET_DISTANCE = parseInt(DISTANCE_INPUT.value) || 100;
+            const EACH_SIDE_POINT_RECORD    = this.calcEachSidePoint(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD,OFFSET_DISTANCE);
+
+
+            // 経度0.000033、緯度0.000027は３ｍ分になる。
+            this.CURRENT_POINT = turf.point([CURRENT_LONGITUDE, CURRENT_LATITUDE]);
+            this.LEFT_POINT    = turf.point([EACH_SIDE_POINT_RECORD.LEFT_POINT.lng,EACH_SIDE_POINT_RECORD.LEFT_POINT.lat]);
+            this.RIGHT_POINT   = turf.point([EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng,EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat]);
+
+
+
+            // 市町村を読み込み、それに対応するファイルを読み込む。
             if(this.isOkToLoadCityCode()){
-                const CITY_CODE =  await this.getCityCode(latitude,longitude);
-                if(CITY_CODE === ""){
-                    // skip
-                }else{
-                    this.loadGeoData(CITY_CODE);
-                }
-                this.lastLoadCityCodeTime = Date.now();
+                this.loadCityCodeSystem(CURRENT_LATITUDE,CURRENT_LONGITUDE,EACH_SIDE_POINT_RECORD)
             }
 
-            // console.log(this.GEO_DATA);
+            // console.log(this.CURRENT_GEO_DATA);
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
             //以下　await 後のプロセス
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝ 
-            this.getCityOoazaKoazaName();
+
+
+            // this.current_ this.left_ this.right_の
+            // KoazaOoaza, CityName, PrefNameを保存する。
+            this.loadCityDataSystem();
+
             this.Announce();
             this.DisplayInfo();
 
 
-        })
+
+            // 前回の座標を更新
+            this.lastLongitude = CURRENT_LONGITUDE;
+            this.lastLatitude  = CURRENT_LATITUDE;
+
+        }, (error) => {
+        console.error("位置情報の取得に失敗しました", error);
+        }, {
+            enableHighAccuracy: true, // 高精度モードを有効化
+            timeout: 5000,
+            maximumAge: 0
+        });
     }
 
-    getCityOoazaKoazaName() {
-        if (!this.GEO_DATA) return;
+    private isReliableGPS_Accuracy(position : any){
+        const THRESHOLD_INPUT = document.getElementById("threshold-input") as HTMLInputElement;
+
+        const ACCURACY = position.coords.accuracy; // 単位：メートル
+        
+        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;   
+       
+
+        if (ACCURACY > ACCURACY_THRESHOLD) {
+            console.warn(`GPS精度不足のためスキップ: 誤差 ${Math.round(ACCURACY)}m`);
+            return false;
+        }else{
+            return true
+        }
+    }
+    private updateGPS_AccuracyDisplay(position : any){
+        const ACCURACY_DISPLAY  = document.getElementById("accuracy-display") as HTMLDivElement;
+        const GPS_STATUS        = document.getElementById("gps-status") as HTMLDivElement;
+        const THRESHOLD_INPUT = document.getElementById("threshold-input") as HTMLInputElement;
+       
+        const ACCURACY          = Math.round(position.coords.accuracy);
+
+        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;
+
+
+        ACCURACY_DISPLAY.innerText = `GPS誤差 : ${ACCURACY}m`;
+
+        // --- 精度によるステータス表示の切り替え ---
+        if (ACCURACY <= ACCURACY_THRESHOLD / 5) {
+            GPS_STATUS.innerText = "高精度";
+            GPS_STATUS.className = "status-online"; // 緑色
+        } else if (ACCURACY <= ACCURACY_THRESHOLD) {
+            GPS_STATUS.innerText = "中精度";
+            GPS_STATUS.className = "status-online"; // 緑色
+        } else {
+            GPS_STATUS.innerText = "精度低下";
+            GPS_STATUS.style.backgroundColor = "#FF9500"; // オレンジ色（警告）
+        }
+
+    }
+
+
+
+    // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+    private calcDirectionSystem(CURRENT_LONGITUDE : number,CURRENT_LATITUDE: number, LAST_LONGITUDE: number, LAST_LATITUDE: number){
+            // 方位角を計算
+            // 北 = 0°, 東 = 90°, 南 = 180°, 西 = 270°
+            const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LONGITUDE,CURRENT_LATITUDE,LAST_LONGITUDE,LAST_LATITUDE);
+
+            // 現在地点の左右方向を計算
+            const EACH_SIDE_DIRECTION_RECORD = this.calcEachSideDirection(NORMAL_DIRECTION);
+
+            return EACH_SIDE_DIRECTION_RECORD;
+    }
+    private calcNormalDirection(CURRENT_LONGITUDE : number,CURRENT_LATITUDE: number, LAST_LONGITUDE: number, LAST_LATITUDE: number){
+        // 前回の位置と今回の位置をもとに、進行方向の方角を計算する。
+
+
+        const TO_RAD = d => d * Math.PI / 180;
+        const TO_DEG = r => r * 180 / Math.PI;
+
+        const Φ1 = TO_RAD(LAST_LATITUDE);
+        const Φ2 = TO_RAD(CURRENT_LATITUDE);
+        const Δλ = TO_RAD(CURRENT_LONGITUDE - LAST_LONGITUDE);
+
+        const y  = Math.sin(Δλ) * Math.cos(Φ2);
+        const x  = Math.cos(Φ1) * Math.sin(Φ2) - Math.sin(Φ1) * Math.cos(Φ2) * Math.cos(Δλ);
+
+        return (TO_DEG(Math.atan2(y,x)) + 360) % 360;
+    }
+    private calcEachSideDirection(NORMAL_DIRECTION : number) : Record<string,number>{
+ 
+        return {
+                rightDir: NORMAL_DIRECTION + 90,
+                leftDir: NORMAL_DIRECTION - 90
+            };
+       
+    }
+    // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+
+    // ==============================================================================
+    private WGS84_offsetPosition(CURRENT_LATITUDE : number, CURRENT_LONGITUDE : number, DIRECTION : number, DISTANCE : number){
+        //World Geodetic System 1984    
+
+        const EARTH_RADIUS : number = 6378137; // 地球半径（m）
+
+        const TO_RAD = d => d * Math.PI / 180;
+        const TO_DEG = r => r * 180 / Math.PI;
+
+        const br = TO_RAD(DIRECTION); //br = bearing　方位角
+        const φ1 = TO_RAD(CURRENT_LATITUDE);
+        const λ1 = TO_RAD(CURRENT_LONGITUDE);
+
+        const φ2 = Math.asin(
+            Math.sin(φ1) * Math.cos(DISTANCE / EARTH_RADIUS) +
+            Math.cos(φ1) * Math.sin(DISTANCE / EARTH_RADIUS) * Math.cos(br)
+        );
+
+        const λ2 = λ1 + Math.atan2(
+            Math.sin(br) * Math.sin(DISTANCE / EARTH_RADIUS) * Math.cos(φ1),
+            Math.cos(DISTANCE / EARTH_RADIUS) - Math.sin(φ1) * Math.sin(φ2)
+        );
+
+        return {
+            lat: TO_DEG(φ2),
+            lng: TO_DEG(λ2)
+        };
+    }
+    private calcEachSidePoint(CURRENT_LATITUDE : number, CURRENT_LONGITUDE : number, DIRECTION_RECORD : Record<string,number>, DISTANCE : number) : Record<string,any>{
+        return {
+                    LEFT_POINT  : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.rightDir,DISTANCE),
+                    RIGHT_POINT : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.leftDir,DISTANCE)
+                }
+    }
+    // ==============================================================================
+
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    private async loadCityCodeSystem(CURRENT_LATITUDE : number,CURRENT_LONGITUDE : number, EACH_SIDE_POINT_RECORD : Record<string,number>){
+        const CURRENT_CITY_CODE     =  await this.getCityCode(CURRENT_LATITUDE,CURRENT_LONGITUDE);
+        const LEFT_POINT_CITY_CODE  =  await this.getCityCode(EACH_SIDE_POINT_RECORD.LEFT_POINT.lat,EACH_SIDE_POINT_RECORD.LEFT_POINT.lng);
+        const RIGHT_POINT_CITY_CODE =  await this.getCityCode(EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat,EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng);
+        
+        if(CURRENT_CITY_CODE === ""){
+            // skip
+        }else{
+            this.CURRENT_GEO_DATA = await this.loadGeoData(CURRENT_CITY_CODE);
+        }
+
+
+        if(LEFT_POINT_CITY_CODE === CURRENT_CITY_CODE){
+            this.LEFT_GEO_DATA  = this.CURRENT_GEO_DATA;
+        }else if(LEFT_POINT_CITY_CODE === ""){
+            // skip
+        }else{
+            this.LEFT_GEO_DATA = await this.loadGeoData(LEFT_POINT_CITY_CODE);
+        }
+
+        if(RIGHT_POINT_CITY_CODE === CURRENT_CITY_CODE){
+            this.RIGHT_GEO_DATA = this.CURRENT_GEO_DATA;
+        }else if(RIGHT_POINT_CITY_CODE === ""){
+            // skip
+        }else{
+            this.RIGHT_GEO_DATA = await this.loadGeoData(RIGHT_POINT_CITY_CODE);
+        }
+
+        this.lastLoadCityCodeTime = Date.now();
+    }
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    private getCityOoazaKoazaName(USER_LNG : number, USER_LAT : number) : Record<string,string> | void{
+        if (!this.CURRENT_GEO_DATA) return;
 
         let minDistance = Infinity;
         let closestOoazaAndKoaza = "判定中...";
 
         // 現在地の座標を取り出す
-        const userLng = this.CURRENT_POINT.geometry.coordinates[0];
-        const userLat = this.CURRENT_POINT.geometry.coordinates[1];
+        // const userLng = this.CURRENT_POINT.geometry.coordinates[0];
+        // const userLat = this.CURRENT_POINT.geometry.coordinates[1];
+        var cityName = "";
+        var prefName = "";
 
-        turf.featureEach(this.GEO_DATA, (feature: any) => {
+        turf.featureEach(this.CURRENT_GEO_DATA, (feature: any) => {
             const props = feature.properties;
          
             
@@ -2912,8 +3142,8 @@ class App{
             if (props.X_CODE && props.Y_CODE) {
                 // 現在地と、各町の代表地点(X_CODE, Y_CODE)の距離を計算
                 // ※簡易的な計算式ですが、小字レベルなら十分です
-                const dx = userLng - props.X_CODE;
-                const dy = userLat - props.Y_CODE;
+                const dx = USER_LNG - props.X_CODE;
+                const dy = USER_LAT - props.Y_CODE;
                 const distanceSq = dx * dx + dy * dy; // 距離の2乗
 
                 // 一番近い町を更新していく
@@ -2921,31 +3151,73 @@ class App{
                     minDistance = distanceSq;
                     closestOoazaAndKoaza = props.S_NAME;
                 }
+
+                cityName = props.CITY_NAME;
+                prefName = props.PREF_NAME;
             }
 
-             this.OoazaAndKoaza = closestOoazaAndKoaza;
-             this.cityName      = props.CITY_NAME;
-             this.prefName      = props.PREF_NAME;
+            // console.log(`in turf featureEach, OOAZA and KOAZA : ${closestOoazaAndKoaza}`)
+
+            //  this.current_OoazaKoaza = closestOoazaAndKoaza;
+            //  this.current_cityName      = props.CITY_NAME;
+            //  this.current_prefName      = props.PREF_NAME;
+            // console.log(closestOoazaAndKoaza,props.CITY_NAME,props.PREF_NAME)
+
         });
 
+        return {
+            OOAZA_AND_KOAZA  : closestOoazaAndKoaza,
+            CITY_NAME        : cityName,
+            PREF_NAME        : prefName
+        }
        
-        // console.log("最も近い地点:", this.OoazaAndKoaza);
+        // console.log("最も近い地点:", this.current_OoazaKoaza);
+    } 
+    private loadCityDataSystem(){
+        const CURRENT_CITY_DATA =  this.getCityOoazaKoazaName(this.CURRENT_POINT.geometry.coordinates[0], this.CURRENT_POINT.geometry.coordinates[1]) as Record<string,string>;
+        if(CURRENT_CITY_DATA !== undefined){
+            console.log(CURRENT_CITY_DATA);
+        
+            this.currentKoazaOoaza  =  CURRENT_CITY_DATA.OOAZA_AND_KOAZA;
+            this.current_cityName   =  CURRENT_CITY_DATA.CITY_NAME;
+            this.current_prefName   =  CURRENT_CITY_DATA.PREF_NAME;
+
+            const LEFT_CITY_DATA    =  this.getCityOoazaKoazaName(this.LEFT_POINT.geometry.coordinates[0],    this.LEFT_POINT.geometry.coordinates[1]) as Record<string,string>;
+            this.leftKoazaOoaza     =  LEFT_CITY_DATA.OOAZA_AND_KOAZA;
+            this.left_cityName      =  LEFT_CITY_DATA.CITY_NAME;
+            this.left_prefName      =  LEFT_CITY_DATA.PREF_NAME;
+
+            const RIGHT_CITY_DATA   =  this.getCityOoazaKoazaName(this.RIGHT_POINT.geometry.coordinates[0],   this.RIGHT_POINT.geometry.coordinates[1]) as Record<string,string>;
+            this.rightKoazaOoaza    =  RIGHT_CITY_DATA.OOAZA_AND_KOAZA;
+            this.right_cityName     =  RIGHT_CITY_DATA.CITY_NAME;
+            this.right_prefName     =  RIGHT_CITY_DATA.PREF_NAME;
+        }else{
+            console.log(`oh undefined////`)
+        }
+
+        // console.log("koaza ooaza under")
+        // console.log(this.currentKoazaOoaza,this.leftKoazaOoaza,this.rightKoazaOoaza)
     }
 
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    isOoazaAndKoazaSame() : boolean{
-        return this.OoazaAndKoaza === this.previousKoaza ? true : false;
+    
+
+
+
+    isOoazaAndKoazaSame(OOAZA_KOAZA : string, KEY : string) : boolean{
+        return OOAZA_KOAZA === this.previousKoaza[KEY] ? true : false;
     }
-    isCityNameSame() : boolean{
-        return this.cityName === this.previousCityName ? true : false;
+    isCityNameSame(CITY_NAME : string, KEY : string) : boolean{
+        return CITY_NAME === this.previousCityName[KEY] ? true : false;
     }
-    isPrefNameSame() : boolean{
-        return this.prefName === this.previousPrefName ? true : false;
+    isPrefNameSame(PREF_NAME : string, KEY : string) : boolean{
+        return PREF_NAME === this.previousPrefName[KEY] ? true : false;
     }
 
     Announce(){
-        if(this.isOoazaAndKoazaSame()){
-            // skip
+        if(this.isOoazaAndKoazaSame(this.currentKoazaOoaza,"CURRENT") && this.isOoazaAndKoazaSame(this.leftKoazaOoaza,"LEFT") && this.isOoazaAndKoazaSame(this.rightKoazaOoaza,"RIGHT")){
+            // もし、現在地点、左方向移動地点、右方向移動地点の地名が同じ場合はskip
             // console.log("in announce false :skip")
         }else{
             window.speechSynthesis.cancel();
@@ -2958,7 +3230,21 @@ class App{
             // console.log("in anouunce true")
             window.speechSynthesis.speak(UTTR);
 
-            this.previousKoaza = this.OoazaAndKoaza;
+            // this.previousKoaza.CURRENT = this.currentKoazaOoaza;
+            // this.previousKoaza.LEFT    = this.leftKoazaOoaza;
+            // this.previousKoaza.RIGHT   = this.rightKoazaOoaza;
+            const sides = ["CURRENT", "LEFT", "RIGHT"] as const;
+            const data = {
+                CURRENT: { koaza: this.currentKoazaOoaza, city: this.current_cityName, pref: this.current_prefName },
+                LEFT:    { koaza: this.leftKoazaOoaza,    city: this.left_cityName,    pref: this.left_prefName },
+                RIGHT:   { koaza: this.rightKoazaOoaza,   city: this.right_cityName,   pref: this.right_prefName }
+            };
+
+            sides.forEach(side => {
+                this.previousKoaza[side]    = data[side].koaza;
+                this.previousCityName[side] = data[side].city;
+                this.previousPrefName[side] = data[side].pref;
+            });
 
             this.addHistoryLog();
         }
@@ -2966,12 +3252,170 @@ class App{
 
     writeAnnounceContent(){
 
-        console.log(`pref flg : [${this.isPrefNameSame()}] and city flg : [${this.isCityNameSame()}]`)
+        if(this.currentKoazaOoaza === this.leftKoazaOoaza && this.leftKoazaOoaza === this.rightKoazaOoaza){
+            // 現在地・左地点・右地点が同一の場合
+            return this.produceAllSameContent();
+
+        }else if(this.leftKoazaOoaza === this.rightKoazaOoaza){
+            return this.produceCurrentContent() + this.produceLeftRightSameContent();
+
+        }else if(this.currentKoazaOoaza === this.leftKoazaOoaza){
+            console.log("in CL and R")
+            return this.produceLeftCurrentSameContent() + this.produceRightContent();
+
+        }else if(this.currentKoazaOoaza === this.rightKoazaOoaza){
+            return this.produceRightCurrentSameContent() + this.produceLeftContent();
+
+        }
         
+    }
+    private produceAllSameContent(){
+                
+        const REST_CONNMA   = "、、、、、、";
+        
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
+        
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.current_prefName,"CURRENT") && this.isCityNameSame(this.current_cityName,"CURRENT")){
+            const RAW_CONTENT =  `げんざい、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            sentences =  RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
+        }else if(this.isPrefNameSame(this.current_prefName,"CURRENT") === false){
+
+
+            const RAW_CONTENT =  `げんざい、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            sentences  = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
+        }else if(this.isCityNameSame(this.current_cityName,"CURRENT") === false){
+            const RAW_CONTENT =  `げんざい、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            sentences  = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
+        }
+
+        return "左右・全方位にかけて" + sentences;
+    }
+    private produceCurrentContent(){
+        const REST_CONNMA   = "、、、、、、";
+        
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
+        
+
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.current_prefName,"CURRENT") && this.isCityNameSame(this.current_cityName,"CURRENT")){
+            sentences =  `げんざい、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+   
+        }else if(this.isPrefNameSame(this.current_prefName,"CURRENT") === false){
+            sentences =  `げんざい、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            
+        }else if(this.isCityNameSame(this.current_cityName,"CURRENT") === false){
+            sentences =  `げんざい、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+        }
+
+        return sentences;
+    }
+    private produceLeftRightSameContent(){
+        const REST_CONNMA   = "、、、、、、";
+        
+
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.leftKoazaOoaza);
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.left_prefName,"LEFT") && this.isCityNameSame(this.left_cityName,"LEFT")){
+            sentences =  `左右方面は、${this.leftKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+   
+        }else if(this.isPrefNameSame(this.left_prefName,"LEFT") === false){
+            sentences =  `左右方面は、${this.left_prefName}${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            
+        }else if(this.isCityNameSame(this.left_cityName,"LEFT") === false){
+            sentences =  `左右方面は、${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${this.left_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+        }
+
+        return sentences;
+    }
+    private produceLeftCurrentSameContent(){
+        const REST_CONNMA   = "、、、、、、";
+        
+
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.left_prefName,"LEFT") && this.isCityNameSame(this.left_cityName,"LEFT")){
+            sentences =  `左方面と現在地点は、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+   
+        }else if(this.isPrefNameSame(this.left_prefName,"LEFT") === false){
+            sentences =  `左方面と現在地点は、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            
+        }else if(this.isCityNameSame(this.left_cityName,"LEFT") === false){
+            sentences =  `左方面と現在地点は、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+        }
+
+        return sentences;
+    }
+    private produceRightCurrentSameContent(){
+        const REST_CONNMA   = "、、、、、、";
+        
+
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.right_prefName,"RIGHT") && this.isCityNameSame(this.right_cityName,"RIGHT")){
+            sentences =  `右方面と現在地点は、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+   
+        }if(this.isPrefNameSame(this.right_prefName,"RIGHT") === false){
+
+            sentences =  `右方面と現在地点は、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            
+        }else if(this.isCityNameSame(this.right_cityName,"RIGHT") === false){
+            sentences =  `右方面と現在地点は、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+        }
+
+        return sentences;
+    }
+    private produceLeftContent(){
+        const REST_CONNMA   = "、、、、、、";
+        
+
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.leftKoazaOoaza);
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.left_prefName,"LEFT") && this.isCityNameSame(this.left_cityName,"LEFT")){
+            sentences =  `左方面は、${this.leftKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+   
+        }else if(this.isPrefNameSame(this.left_prefName,"LEFT") === false){
+
+            sentences =  `左方面は、${this.left_prefName}${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+            
+        }else if(this.isCityNameSame(this.left_cityName,"LEFT") === false){
+            sentences =  `左方面は、${this.current_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+        }
+
+        return sentences;
+    }
+    private produceRightContent(){
+        const REST_CONNMA   = "、、、、、、";
+        
+
+        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.rightKoazaOoaza);
+
+        var sentences = "";
+        if(this.isPrefNameSame(this.right_prefName,"RIGHT") && this.isCityNameSame(this.right_cityName,"RIGHT")){
+            sentences =  `右方面は、${this.rightKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+   
+        }else if(this.isPrefNameSame(this.right_prefName,"RIGHT") === false){
+            sentences =  `右方面は、${this.right_prefName}${REST_CONNMA}${this.right_cityName}${REST_CONNMA}${this.rightKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.right_prefName}${REST_CONNMA}${this.right_cityName}${ooazaAndKoaza[1]}にはいりました。`
+            
+        }else if(this.isCityNameSame(this.right_cityName,"RIGHT") === false){
+            sentences =  `右方面は、${this.right_cityName}${REST_CONNMA}${this.rightKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
+        }
+
+        return sentences;
+    }
+
+
+    private produceSeparationOfOoazaKoaza(KOAZA_OOAZA : string) : string[]{
         const REST_CONNMA   = "、、、、、、";
 
-        if(this.OoazaAndKoaza.includes("大字")){
-            const RAW_DATA = this.OoazaAndKoaza.replace("大字","")
+        if(KOAZA_OOAZA.includes("大字")){
+            const RAW_DATA = KOAZA_OOAZA.replace("大字","")
             const SPLIT_DATA = RAW_DATA.split("字");
             console.log(SPLIT_DATA);
             var ooaza      = SPLIT_DATA[0]
@@ -2979,8 +3423,6 @@ class App{
             if(koaza === undefined){
                 koaza = "";
             }
-
-        
 
             var ooazaAndKoaza : string[]= ["",""];
             if(koaza){
@@ -2992,7 +3434,7 @@ class App{
             }
 
         }else{
-            const SPLIT_DATA    = this.OoazaAndKoaza.split("字");
+            const SPLIT_DATA    = KOAZA_OOAZA.split("字");
             var   ooaza         = SPLIT_DATA[0];
             var   koaza         = SPLIT_DATA[1];
             if(koaza === undefined){
@@ -3009,43 +3451,58 @@ class App{
                 ooazaAndKoaza[1] = `${ooaza}`
             }
         }
-        
-        
-
-
-
-        if(this.isPrefNameSame() && this.isCityNameSame()){
-            const RAW_CONTENT =  `げんざい、${this.OoazaAndKoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }else if(this.isPrefNameSame() === false){
-            this.previousPrefName = this.prefName;
-            this.previousCityName = this.cityName;
-
-            const RAW_CONTENT =  `げんざい、${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${this.OoazaAndKoaza}。${this.prefName}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.prefName}${REST_CONNMA}${this.cityName}${ooazaAndKoaza[1]}にはいりました。`
-            return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }else if(this.isCityNameSame() === false){
-            const RAW_CONTENT =  `げんざい、${this.cityName}${REST_CONNMA}${this.OoazaAndKoaza}。${this.cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.cityName}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            return RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }
-
-
-
+    
+        return ooazaAndKoaza;   
     }
 
-    DisplayInfo(){
-        const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza")  as HTMLDivElement;
-        const LONGITUDE_DISPLAY     = document.getElementById("lng-val")        as HTMLDivElement; // 経度
-        const LATITUDE_DISPLAY      = document.getElementById("lat-val")        as HTMLDivElement; // 緯度
 
-        CURRENT_KOAZA_DISPLAY.innerHTML = `${this.prefName} ${this.cityName}<br>${this.OoazaAndKoaza}`;
-        LONGITUDE_DISPLAY.innerHTML     = this.CURRENT_POINT.geometry.coordinates[0];
-        LATITUDE_DISPLAY.innerHTML      = this.CURRENT_POINT.geometry.coordinates[1];
+    DisplayInfo() {
+        const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza") as HTMLDivElement;
+        const LONGITUDE_DISPLAY = document.getElementById("lng-val") as HTMLDivElement;
+        const LATITUDE_DISPLAY = document.getElementById("lat-val") as HTMLDivElement;
+        const LEFT_KOAZA_DISPLAY = document.getElementById("left-koaza") as HTMLDivElement;
+        const RIGHT_KOAZA_DISPLAY = document.getElementById("right-koaza") as HTMLDivElement;
+
+        // ヘルパー関数：変化がある部分だけを文字列にする
+        const formatDisplayString = (pref: string, city: string, koaza: string, key: string) => {
+            const isPrefSame = this.isPrefNameSame(pref, key);
+            const isCitySame = this.isCityNameSame(city, key);
+
+            if (!isPrefSame) {
+                // 県が変わった場合：全部表示
+                return `${pref} ${city}<br>${koaza}`;
+            } else if (!isCitySame) {
+                // 県は同じだが、市が変わった場合：市から表示
+                return `${city}<br>${koaza}`;
+            } else {
+                // 県も市も同じ場合：小字（大字）のみ表示
+                return `${koaza}`;
+            }
+        };
+
+        // 各要素の書き換え
+        CURRENT_KOAZA_DISPLAY.innerHTML = formatDisplayString(
+            this.current_prefName, this.current_cityName, this.currentKoazaOoaza, "CURRENT"
+        );
+
+        LEFT_KOAZA_DISPLAY.innerHTML = formatDisplayString(
+            this.left_prefName, this.left_cityName, this.leftKoazaOoaza, "LEFT"
+        );
+
+        RIGHT_KOAZA_DISPLAY.innerHTML = formatDisplayString(
+            this.right_prefName, this.right_cityName, this.rightKoazaOoaza, "RIGHT"
+        );
+
+        // 座標の表示
+        LONGITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[0].toString();
+        LATITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[1].toString();
     }
 
     addHistoryLog(){
-        const LOG = document.getElementById('history-log') as HTMLElement;
-        const li = document.createElement('li');
-        li.innerText = `${new Date().toLocaleTimeString()} - ${this.prefName} ${this.cityName} ${this.OoazaAndKoaza}`;
+        const LOG       = document.getElementById('history-log') as HTMLElement;
+        const li        = document.createElement('li');
+        const SPACE     = "&nbsp;".repeat(17);
+        li.innerHTML    = `${new Date().toLocaleTimeString()} - [現在地点]${this.current_prefName} ${this.current_cityName} ${this.currentKoazaOoaza}<br>${SPACE}[左方面地点]${this.left_prefName} ${this.left_cityName} ${this.leftKoazaOoaza}<br>${SPACE}[右方面地点]${this.right_prefName} ${this.right_cityName} ${this.rightKoazaOoaza}`;
         LOG?.prepend(li);
 
         this.sendHistoryLogToFirebase();
