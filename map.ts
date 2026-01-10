@@ -2851,14 +2851,64 @@ class App{
 
         await this.initAfterAndGetCurrentPosition();
 
+        this.setupSettingEffect();
 
+        await this.loadUserParameterAndInput();
 
         setInterval(() => {
                 this.initAfterAndGetCurrentPosition();
         }, 1000);
        
     }
+    private async loadUserParameterAndInput() {
+        try {
+            // 1. データのダウンロードを確実に待機
+            const [accuracyData, distanceData] = await Promise.all([
+                this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
+                this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance")
+            ]);
 
+            // 2. 要素を HTMLInputElement として取得
+            const THRESHOLD_EL = document.getElementById("threshold-input") as HTMLInputElement;
+            const DISTANCE_EL = document.getElementById("distance-input") as HTMLInputElement;
+
+            // 3. .value を使って値をセット（データがない場合はデフォルト値を表示）
+            if (THRESHOLD_EL) {
+                THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
+                // 視覚的エフェクトをトリガー
+                THRESHOLD_EL.classList.add('setting-updated');
+            }
+
+            if (DISTANCE_EL) {
+                DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
+                // 視覚的エフェクトをトリガー
+                DISTANCE_EL.classList.add('setting-updated');
+            }
+
+            console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
+
+        } catch (error) {
+            console.error("データの読み込み中にエラーが発生しました:", error);
+        }
+    }
+
+    private setupSettingEffect() {
+        const inputs = ['threshold-input', 'distance-input'];
+        
+        inputs.forEach(id => {
+            const el = document.getElementById(id) as HTMLInputElement;
+            if (!el) return;
+
+            el.addEventListener('change', () => {
+                // クラスを一度消して再付与することで、連続変更でもアニメーションを走らせる
+                el.classList.remove('setting-updated');
+                void el.offsetWidth; // リフローを強制（アニメーションのリセットに必要）
+                el.classList.add('setting-updated');
+                
+                console.log(`${id} が変更されました: ${el.value}`);
+            });
+        });
+    }
 
 
     async getCityCode(lat : number , lng : number):Promise<string>{
@@ -2998,17 +3048,28 @@ class App{
         ACCURACY_DISPLAY.innerText = `GPS誤差 : ${ACCURACY}m`;
 
         // --- 精度によるステータス表示の切り替え ---
-        if (ACCURACY <= ACCURACY_THRESHOLD / 5) {
-            GPS_STATUS.innerText = "高精度";
-            GPS_STATUS.className = "status-online"; // 緑色
-        } else if (ACCURACY <= ACCURACY_THRESHOLD) {
-            GPS_STATUS.innerText = "中精度";
-            GPS_STATUS.className = "status-online"; // 緑色
-        } else {
-            GPS_STATUS.innerText = "精度低下";
-            GPS_STATUS.style.backgroundColor = "#FF9500"; // オレンジ色（警告）
-        }
 
+        const ratio = ACCURACY / ACCURACY_THRESHOLD;
+
+        if (ratio <= 0.3) {
+            // かなり正確（青〜緑）
+            GPS_STATUS.innerText = "高精度";
+            GPS_STATUS.style.backgroundColor = "var(--accent)"; // 緑
+        } else if (ratio <= 0.7) {
+            // 普通（緑〜黄色）
+            GPS_STATUS.innerText = "中精度";
+            GPS_STATUS.style.backgroundColor = "#AFCE33"; // 黄緑
+        } else if (ratio <= 1.0) {
+            // 境界線（黄色）
+            GPS_STATUS.innerText = "低精度";
+            GPS_STATUS.style.backgroundColor = "#FFD60A"; // 黄
+            GPS_STATUS.style.color = "black";
+        } else {
+            // 閾値を超えた（オレンジ〜赤）
+            GPS_STATUS.innerText = "精度不足";
+            GPS_STATUS.style.backgroundColor = "#FF3B30"; // 赤
+            GPS_STATUS.style.color = "white";
+        }
     }
 
 
@@ -3537,6 +3598,24 @@ class History{
         CLOSE_HISTORY_BTN.addEventListener("click",()=>{
             this.closeHistoryModal();
         })
+
+        const SAVE_PARAETER_BTN = document.getElementById("saveSettingsBtn") as HTMLElement;
+        SAVE_PARAETER_BTN.addEventListener("click",()=>{
+            this.sendParameterToFirebse();
+            SAVE_PARAETER_BTN.classList.remove("save-success");
+            void(SAVE_PARAETER_BTN as HTMLElement).offsetWidth;
+            SAVE_PARAETER_BTN.classList.add("save-success");
+        })
+    }
+    sendParameterToFirebse(){
+       
+        const ACCURACY_THRESHOLD_INPUT = document.getElementById("threshold-input") as HTMLInputElement;
+        
+        const RL_DISTANCE_INPUT = document.getElementById("distance-input") as HTMLInputElement;
+        
+        this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold",ACCURACY_THRESHOLD_INPUT.value);
+        this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance",RL_DISTANCE_INPUT.value);
+      
     }
 
 

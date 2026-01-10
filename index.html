@@ -82,13 +82,16 @@
                     <div class="settings-grid">
                         <div class="setting-item">
                             <span class="info-label">精度閾値 (m)</span>
-                            <input type="number" id="threshold-input" value="100" min="10" max="1000">
+                            <input type="number" id="threshold-input" value="0">
                         </div>
                         <div class="setting-item">
                             <span class="info-label">左右距離 (m)</span>
-                            <input type="number" id="distance-input" value="100" min="10" max="1000">
+                            <input type="number" id="distance-input" value="0">
                         </div>
                     </div>
+                    <button id="saveSettingsBtn" class="secondary-btn" style="margin-top: 10px; padding: 10px; border-radius: 12px; border: none; background: var(--accent); color: white; font-weight: 600; cursor: pointer;">
+                        設定を保存する
+                    </button>
                 </div>
             </footer>
         </div>

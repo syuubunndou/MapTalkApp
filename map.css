@@ -279,24 +279,59 @@ footer {
     padding: 15px !important;
     gap: 10px !important;
 }
-
+/* 設定カード内のグリッド調整 */
 .settings-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    grid-template-columns: 1fr 1fr; /* 50%ずつに分割 */
+    gap: 12px;                     /* 項目間の隙間 */
+    width: 100%;                   /* 親の幅に合わせる */
+    box-sizing: border-box;
 }
 
 .setting-item {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    width: 100%;                   /* はみ出し防止 */
+    min-width: 0;                  /* Flex/Grid内での圧縮を許可 */
 }
 
+/* 入力要素の横幅を親にジャストフィットさせる */
 .setting-item input {
+    width: 100%;                   /* 親要素の幅いっぱいに広げる */
+    box-sizing: border-box;        /* paddingを含めたサイズ計算にする（重要） */
     border: 1px solid #E5E5EA;
-    border-radius: 8px;
-    padding: 8px;
-    font-size: 0.9rem;
+    border-radius: 10px;
+    padding: 10px 4px;             /* 上下はゆったり、左右は控えめに */
+    font-size: 1rem;               /* Pixel 9で押しやすいサイズ */
     text-align: center;
     background: #F2F2F7;
+    -webkit-appearance: none;      /* iOS/Androidのデフォルトスタイルをリセット */
+}
+
+/* 保存ボタンの調整 */
+#saveSettingsBtn {
+    width: 100%;                   /* カードの幅いっぱいに */
+    box-sizing: border-box;
+    margin-top: 10px;
+  
+}
+
+/* map.css に追加 */
+.setting-updated {
+    animation: highlight-flash 1.8s ease-out;
+}
+
+@keyframes highlight-flash {
+    0% { background-color: var(--primary); color: white; }
+    100% { background-color: #F2F2F7; color: var(--text); }
+}
+.secondary-btn:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* 保存成功時のフラッシュ用（前回の設定流用） */
+.save-success {
+    animation: highlight-flash 0.8s ease-out;
 }
