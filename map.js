@@ -1891,7 +1891,7 @@ class App {
             console.log(CONTENT);
             const UTTR = new SpeechSynthesisUtterance(CONTENT);
             UTTR.lang = "ja-JP";
-            UTTR.rate = 3.0;
+            UTTR.rate = 2.0;
             UTTR.pitch = 1.0;
             window.speechSynthesis.speak(UTTR);
             const sides = ["CURRENT", "LEFT", "RIGHT"];
@@ -2211,3 +2211,4 @@ APP_START_BTN.addEventListener("click", () => {
 });
 const HISTORY = new History(FIREBASE_FUNCTION);
 //# sourceMappingURL=map.js.map
+
