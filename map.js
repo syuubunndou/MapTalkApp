@@ -2165,6 +2165,25 @@ class History {
 class Camera {
     constructor() {
         this.setupCameraControls();
+        this.setUpCameraSize();
+    }
+    setUpCameraSize() {
+        const cameraContainer = document.getElementById("camera-container");
+        try {
+            const locationCard = document.querySelector(".location-card");
+            if (locationCard) {
+                const rect = locationCard.getBoundingClientRect();
+                const dynamicWidth = rect.width * 0.8;
+                const dynamicHeight = rect.height * 0.6;
+                cameraContainer.style.width = `${dynamicWidth}px`;
+                cameraContainer.style.height = `${dynamicHeight}px`;
+                cameraContainer.style.margin = "0 auto 15px auto";
+            }
+        }
+        catch (err) {
+            console.error("カメラの起動に失敗しました:", err);
+            alert("カメラを起動できませんでした。");
+        }
     }
     setupCameraControls() {
         const toggleCameraBtn = document.getElementById("toggle-camera-btn");

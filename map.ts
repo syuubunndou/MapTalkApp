@@ -3701,7 +3701,47 @@ class Camera{
 
     constructor(){
         this.setupCameraControls();
+        this.setUpCameraSize();
     }
+    private setUpCameraSize(){
+       
+        
+        const cameraContainer = document.getElementById("camera-container") as HTMLDivElement;
+       
+        try {
+        // 1. .card 要素（location-card）の現在のサイズを取得
+        const locationCard = document.querySelector(".location-card") as HTMLElement;
+        if (locationCard) {
+            const rect = locationCard.getBoundingClientRect();
+            
+            // 2. 指定の比率（高さ40%、幅20%）を計算
+            // ※「上」に配置する場合、幅100%の方が収まりが良いですが、
+            // ご要望通りpxで代入します。
+            const dynamicWidth = rect.width * 0.8;
+            const dynamicHeight = rect.height * 0.6;
+
+            // 3. カメラコンテナにpx単位で適用
+            cameraContainer.style.width = `${dynamicWidth}px`;
+            cameraContainer.style.height = `${dynamicHeight}px`;
+            
+            // 中央寄せしたい場合は以下を追加
+            cameraContainer.style.margin = "0 auto 15px auto"; 
+        }
+
+        // // カメラ起動処理
+        // this.stream = await navigator.mediaDevices.getUserMedia({
+        //     video: { facingMode: "environment" }
+        // });
+        // videoElement.srcObject = this.stream;
+        // videoElement.play();
+        // containerElement.classList.remove("hidden");
+
+    } catch (err) {
+        console.error("カメラの起動に失敗しました:", err);
+        alert("カメラを起動できませんでした。");
+    }
+    }
+
     private setupCameraControls() {
         const toggleCameraBtn = document.getElementById("toggle-camera-btn");
         const closeCameraBtn = document.getElementById("close-camera-btn");
