@@ -351,3 +351,87 @@ input[type="range"] {
     color: var(--primary);
     font-size: 0.9rem;
 }
+
+
+/* カメラコンテナ */
+.camera-container {
+    position: absolute;
+    top: 8%; /* カードの上からの位置調整 */
+    right: 50px; /* カードの右からの位置調整 */
+    width: 90px; /* カードの幅の20% */
+    height: 90px; /* カードの高さの40% */
+    background-color: black;
+    border-radius: 12px;
+    overflow: hidden; /* 映像がはみ出さないように */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 50; /* 他の要素より手前に表示 */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    transition: opacity 0.3s ease;
+}
+
+.camera-container.hidden {
+    opacity: 0;
+    pointer-events: none; /* クリックイベントを受け付けない */
+}
+
+/* カメラ映像 */
+#camera-feed {
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 映像がコンテナいっぱいに広がるように */
+    transform: scaleX(-1); /* フロントカメラの場合、左右反転して自然な鏡像にする */
+}
+
+/* 閉じるボタン */
+.close-camera-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    font-size: 1.2rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 60; /* カメラ映像より手前に */
+}
+
+/* カメラON/OFFボタン（既存のsecondary-btnを利用） */
+.camera-toggle-btn {
+    background-color: #6C757D; /* グレー系のボタン */
+    color: white;
+    padding: 10px 15px;
+    border-radius: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 10px; /* 他の要素との間隔 */
+}
+.camera-toggle-btn:active {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* secondary-btn が存在しない場合、以下を追加してください */
+/*
+.secondary-btn {
+    width: 100%;
+    background: #6C757D;
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: 18px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+*/

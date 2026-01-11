@@ -2162,9 +2162,63 @@ class History {
         MODAL.style.display = "none";
     }
 }
+class Camera {
+    constructor() {
+        this.setupCameraControls();
+    }
+    setupCameraControls() {
+        const toggleCameraBtn = document.getElementById("toggle-camera-btn");
+        const closeCameraBtn = document.getElementById("close-camera-btn");
+        const cameraContainer = document.getElementById("camera-container");
+        const cameraFeed = document.getElementById("camera-feed");
+        if (toggleCameraBtn && closeCameraBtn && cameraContainer && cameraFeed) {
+            toggleCameraBtn.addEventListener("click", () => {
+                if (cameraContainer.classList.contains("hidden")) {
+                    this.startCamera(cameraFeed, cameraContainer);
+                }
+                else {
+                    this.stopCamera(cameraContainer);
+                }
+            });
+            closeCameraBtn.addEventListener("click", () => {
+                this.stopCamera(cameraContainer);
+            });
+        }
+    }
+    startCamera(videoElement, containerElement) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                this.stream = yield navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "environment"
+                    }
+                });
+                videoElement.srcObject = this.stream;
+                videoElement.play();
+                containerElement.classList.remove("hidden");
+            }
+            catch (err) {
+                console.error("カメラの起動に失敗しました:", err);
+                alert("カメラの利用が許可されていないか、利用できません。");
+            }
+        });
+    }
+    stopCamera(containerElement) {
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
+        }
+        const videoElement = containerElement.querySelector("video");
+        if (videoElement) {
+            videoElement.srcObject = null;
+        }
+        containerElement.classList.add("hidden");
+    }
+}
 const APP_START_BTN = document.getElementById("startBtn");
 APP_START_BTN.addEventListener("click", () => {
     const APP = new App(FIREBASE_FUNCTION);
 });
 const HISTORY = new History(FIREBASE_FUNCTION);
+const CAMERA = new Camera();
 //# sourceMappingURL=map.js.map

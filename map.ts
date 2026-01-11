@@ -3590,6 +3590,8 @@ class History{
             console.log( parseFloat(e.target.value).toFixed(1))
             SPEED_DISPLAY.textContent = parseFloat(e.target.value).toFixed(1);
         })
+
+
     }
     sendParameterToFirebse(){
        
@@ -3694,11 +3696,68 @@ class History{
 
 }
 
+class Camera{
+    stream! : any;
+
+    constructor(){
+        this.setupCameraControls();
+    }
+    private setupCameraControls() {
+        const toggleCameraBtn = document.getElementById("toggle-camera-btn");
+        const closeCameraBtn = document.getElementById("close-camera-btn");
+        const cameraContainer = document.getElementById("camera-container");
+        const cameraFeed = document.getElementById("camera-feed") as HTMLVideoElement;
+
+        if (toggleCameraBtn && closeCameraBtn && cameraContainer && cameraFeed) {
+            toggleCameraBtn.addEventListener("click", () => {
+                if (cameraContainer.classList.contains("hidden")) {
+                    this.startCamera(cameraFeed, cameraContainer);
+                } else {
+                    this.stopCamera(cameraContainer);
+                }
+            });
+
+            closeCameraBtn.addEventListener("click", () => {
+                this.stopCamera(cameraContainer);
+            });
+        }
+    }
+
+    private async startCamera(videoElement: HTMLVideoElement, containerElement: HTMLElement) {
+        try {
+            this.stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: "environment" // 背面カメラを優先。'user'で前面カメラ
+                }
+            });
+            videoElement.srcObject = this.stream;
+            videoElement.play();
+            containerElement.classList.remove("hidden");
+        } catch (err) {
+            console.error("カメラの起動に失敗しました:", err);
+            alert("カメラの利用が許可されていないか、利用できません。");
+        }
+    }
+
+    private stopCamera(containerElement: HTMLElement) {
+        if (this.stream) {
+            this.stream.getTracks().forEach(track => track.stop());
+            this.stream = null;
+        }
+        const videoElement = containerElement.querySelector("video");
+        if (videoElement) {
+            videoElement.srcObject = null;
+        }
+        containerElement.classList.add("hidden");
+    }
+}
+
 
 const APP_START_BTN = document.getElementById("startBtn") as HTMLElement;
 APP_START_BTN.addEventListener("click",()=>{
     const APP = new App(FIREBASE_FUNCTION);
 })
 const HISTORY = new History(FIREBASE_FUNCTION);
+const CAMERA  = new Camera();
 
 
