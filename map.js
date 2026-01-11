@@ -1615,12 +1615,15 @@ class App {
     loadUserParameterAndInput() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const [accuracyData, distanceData] = yield Promise.all([
+                const [accuracyData, distanceData, speedData] = yield Promise.all([
                     this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
-                    this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance")
+                    this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance"),
+                    this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed")
                 ]);
                 const THRESHOLD_EL = document.getElementById("threshold-input");
                 const DISTANCE_EL = document.getElementById("distance-input");
+                const SPEED_DISPLAY = document.getElementById("speed-input");
+                const SPEED_VAL = document.getElementById("speed-val");
                 if (THRESHOLD_EL) {
                     THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
                     THRESHOLD_EL.classList.add('setting-updated');
@@ -1628,6 +1631,11 @@ class App {
                 if (DISTANCE_EL) {
                     DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
                     DISTANCE_EL.classList.add('setting-updated');
+                }
+                if (SPEED_DISPLAY) {
+                    SPEED_DISPLAY.value = speedData;
+                    SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
+                    SPEED_DISPLAY.classList.add("setting-updated");
                 }
                 console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
             }
@@ -1704,6 +1712,8 @@ class App {
                 }
                 this.loadCityDataSystem();
                 this.Announce();
+                this.updatePreviousePlaceNames();
+                this.addHistoryLog();
                 this.DisplayInfo();
                 this.lastLongitude = CURRENT_LONGITUDE;
                 this.lastLatitude = CURRENT_LATITUDE;
@@ -1883,193 +1893,133 @@ class App {
         return PREF_NAME === this.previousPrefName[KEY] ? true : false;
     }
     Announce() {
-        if (this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT") && this.isOoazaAndKoazaSame(this.leftKoazaOoaza, "LEFT") && this.isOoazaAndKoazaSame(this.rightKoazaOoaza, "RIGHT")) {
+        const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
+        const hasLeftChanged = !this.isOoazaAndKoazaSame(this.leftKoazaOoaza, "LEFT");
+        const hasRightChanged = !this.isOoazaAndKoazaSame(this.rightKoazaOoaza, "RIGHT");
+        if (!hasCurrentChanged && !hasLeftChanged && !hasRightChanged) {
+            return;
+        }
+        window.speechSynthesis.cancel();
+        const CONTENT = this.writeAnnounceContent(hasCurrentChanged, hasLeftChanged, hasRightChanged);
+        const UTTR = new SpeechSynthesisUtterance(CONTENT);
+        UTTR.lang = "ja-JP";
+        const SPEED_SLIDER = document.getElementById("speed-val");
+        UTTR.rate = parseFloat(SPEED_SLIDER.textContent);
+        UTTR.pitch = 1.0;
+        window.speechSynthesis.speak(UTTR);
+    }
+    writeAnnounceContent(hasCurrentChanged, hasLeftChanged, hasRightChanged) {
+        const REST = "、、、、、、";
+        const LOC_REC = {
+            CURRENT: {
+                label: "げんざい",
+                name: this.currentKoazaOoaza,
+                pref: this.current_prefName,
+                city: this.current_cityName,
+                type: "CURRENT"
+            },
+            LEFT: {
+                label: "ひだり",
+                name: this.leftKoazaOoaza,
+                pref: this.left_prefName,
+                city: this.left_cityName,
+                type: "LEFT"
+            },
+            RIGHT: {
+                label: "みぎ",
+                name: this.rightKoazaOoaza,
+                pref: this.right_prefName,
+                city: this.right_cityName,
+                type: "RIGHT"
+            }
+        };
+        const changedKeys = [];
+        if (hasCurrentChanged)
+            changedKeys.push("CURRENT");
+        if (hasLeftChanged)
+            changedKeys.push("LEFT");
+        if (hasRightChanged)
+            changedKeys.push("RIGHT");
+        let groups = [];
+        if (changedKeys.length === 3 &&
+            LOC_REC.CURRENT.name === LOC_REC.LEFT.name &&
+            LOC_REC.LEFT.name === LOC_REC.RIGHT.name) {
+            groups.push(Object.assign(Object.assign({}, LOC_REC.CURRENT), { directionTitle: "ぜんほうい", repeat: true }));
+        }
+        else if (LOC_REC.CURRENT.name === LOC_REC.LEFT.name && LOC_REC.CURRENT.name === LOC_REC.RIGHT.name) {
+            groups.push(Object.assign(Object.assign({}, LOC_REC.CURRENT), { directionTitle: "ぜんほうい", repeat: true }));
         }
         else {
-            window.speechSynthesis.cancel();
-            const CONTENT = this.writeAnnounceContent();
-            console.log(CONTENT);
-            const UTTR = new SpeechSynthesisUtterance(CONTENT);
-            UTTR.lang = "ja-JP";
-            UTTR.rate = 0.8;
-            UTTR.pitch = 1.0;
-            window.speechSynthesis.speak(UTTR);
-            const sides = ["CURRENT", "LEFT", "RIGHT"];
-            const data = {
-                CURRENT: { koaza: this.currentKoazaOoaza, city: this.current_cityName, pref: this.current_prefName },
-                LEFT: { koaza: this.leftKoazaOoaza, city: this.left_cityName, pref: this.left_prefName },
-                RIGHT: { koaza: this.rightKoazaOoaza, city: this.right_cityName, pref: this.right_prefName }
-            };
-            sides.forEach(side => {
-                this.previousKoaza[side] = data[side].koaza;
-                this.previousCityName[side] = data[side].city;
-                this.previousPrefName[side] = data[side].pref;
+            const handled = new Set();
+            changedKeys.forEach(key => {
+                if (handled.has(key))
+                    return;
+                const sameNameKeys = changedKeys.filter(otherKey => LOC_REC[key].name === LOC_REC[otherKey].name);
+                let title = "";
+                if (sameNameKeys.length === 3) {
+                    title = "ぜんほうい";
+                }
+                else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("LEFT")) {
+                    title = "げんざいとひだりは";
+                }
+                else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("RIGHT")) {
+                    title = "げんざいとみぎは";
+                }
+                else if (sameNameKeys.includes("LEFT") && sameNameKeys.includes("RIGHT")) {
+                    title = "さゆう";
+                }
+                else {
+                    title = LOC_REC[key].label;
+                }
+                groups.push(Object.assign(Object.assign({}, LOC_REC[key]), { directionTitle: title }));
+                sameNameKeys.forEach(k => handled.add(k));
             });
-            this.addHistoryLog();
         }
-    }
-    writeAnnounceContent() {
-        if (this.currentKoazaOoaza === this.leftKoazaOoaza && this.leftKoazaOoaza === this.rightKoazaOoaza) {
-            return this.produceAllSameContent();
-        }
-        else if (this.leftKoazaOoaza === this.rightKoazaOoaza) {
-            return this.produceCurrentContent() + this.produceLeftRightSameContent();
-        }
-        else if (this.currentKoazaOoaza === this.leftKoazaOoaza) {
-            console.log("in CL and R");
-            return this.produceLeftCurrentSameContent() + this.produceRightContent();
-        }
-        else if (this.currentKoazaOoaza === this.rightKoazaOoaza) {
-            return this.produceRightCurrentSameContent() + this.produceLeftContent();
-        }
-    }
-    produceAllSameContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.current_prefName, "CURRENT") && this.isCityNameSame(this.current_cityName, "CURRENT")) {
-            const RAW_CONTENT = `げんざい、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-            sentences = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }
-        else if (this.isPrefNameSame(this.current_prefName, "CURRENT") === false) {
-            const RAW_CONTENT = `げんざい、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-            sentences = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }
-        else if (this.isCityNameSame(this.current_cityName, "CURRENT") === false) {
-            const RAW_CONTENT = `げんざい、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-            sentences = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }
-        return "左右・全方位にかけて" + sentences;
-    }
-    produceCurrentContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.current_prefName, "CURRENT") && this.isCityNameSame(this.current_cityName, "CURRENT")) {
-            sentences = `げんざい、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isPrefNameSame(this.current_prefName, "CURRENT") === false) {
-            sentences = `げんざい、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isCityNameSame(this.current_cityName, "CURRENT") === false) {
-            sentences = `げんざい、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        return sentences;
-    }
-    produceLeftRightSameContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.leftKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.left_prefName, "LEFT") && this.isCityNameSame(this.left_cityName, "LEFT")) {
-            sentences = `左右方面は、${this.leftKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isPrefNameSame(this.left_prefName, "LEFT") === false) {
-            sentences = `左右方面は、${this.left_prefName}${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isCityNameSame(this.left_cityName, "LEFT") === false) {
-            sentences = `左右方面は、${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${this.left_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        return sentences;
-    }
-    produceLeftCurrentSameContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.left_prefName, "LEFT") && this.isCityNameSame(this.left_cityName, "LEFT")) {
-            sentences = `左方面と現在地点は、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isPrefNameSame(this.left_prefName, "LEFT") === false) {
-            sentences = `左方面と現在地点は、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isCityNameSame(this.left_cityName, "LEFT") === false) {
-            sentences = `左方面と現在地点は、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        return sentences;
-    }
-    produceRightCurrentSameContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.right_prefName, "RIGHT") && this.isCityNameSame(this.right_cityName, "RIGHT")) {
-            sentences = `右方面と現在地点は、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        if (this.isPrefNameSame(this.right_prefName, "RIGHT") === false) {
-            sentences = `右方面と現在地点は、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isCityNameSame(this.right_cityName, "RIGHT") === false) {
-            sentences = `右方面と現在地点は、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        return sentences;
-    }
-    produceLeftContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.leftKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.left_prefName, "LEFT") && this.isCityNameSame(this.left_cityName, "LEFT")) {
-            sentences = `左方面は、${this.leftKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isPrefNameSame(this.left_prefName, "LEFT") === false) {
-            sentences = `左方面は、${this.left_prefName}${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isCityNameSame(this.left_cityName, "LEFT") === false) {
-            sentences = `左方面は、${this.current_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        return sentences;
-    }
-    produceRightContent() {
-        const REST_CONNMA = "、、、、、、";
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.rightKoazaOoaza);
-        var sentences = "";
-        if (this.isPrefNameSame(this.right_prefName, "RIGHT") && this.isCityNameSame(this.right_cityName, "RIGHT")) {
-            sentences = `右方面は、${this.rightKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isPrefNameSame(this.right_prefName, "RIGHT") === false) {
-            sentences = `右方面は、${this.right_prefName}${REST_CONNMA}${this.right_cityName}${REST_CONNMA}${this.rightKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.right_prefName}${REST_CONNMA}${this.right_cityName}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        else if (this.isCityNameSame(this.right_cityName, "RIGHT") === false) {
-            sentences = `右方面は、${this.right_cityName}${REST_CONNMA}${this.rightKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`;
-        }
-        return sentences;
-    }
-    produceSeparationOfOoazaKoaza(KOAZA_OOAZA) {
-        const REST_CONNMA = "、、、、、、";
-        if (KOAZA_OOAZA.includes("大字")) {
-            const RAW_DATA = KOAZA_OOAZA.replace("大字", "");
-            const SPLIT_DATA = RAW_DATA.split("字");
-            console.log(SPLIT_DATA);
-            var ooaza = SPLIT_DATA[0];
-            var koaza = SPLIT_DATA[1];
-            if (koaza === undefined) {
-                koaza = "";
+        return groups.map(g => {
+            let prefix = "";
+            const isPrefDiff = !this.isPrefNameSame(g.pref, g.type);
+            const isCityDiff = !this.isCityNameSame(g.city, g.type);
+            if (isPrefDiff) {
+                prefix = `${g.pref}${g.city}${REST}`;
             }
-            var ooazaAndKoaza = ["", ""];
-            if (koaza) {
-                ooazaAndKoaza[0] = `おおあざ${REST_CONNMA}${ooaza}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`;
-                ooazaAndKoaza[1] = `${ooaza}の${REST_CONNMA}${koaza}`;
+            else if (isCityDiff) {
+                prefix = `${g.city}${REST}`;
+            }
+            const parts = this.produceSeparationOfOoazaKoaza(g.name);
+            var main = "";
+            if (g.directionTitle === "ぜんほうい") {
+                main = `${g.directionTitle}、${prefix}${g.name}。${parts[0]}${REST}${parts[1]}にはいりました。`;
             }
             else {
-                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}`;
-                ooazaAndKoaza[1] = `${ooaza}`;
+                main = `${g.directionTitle}、${parts[1]}。`;
             }
+            return g.repeat ? `${main}繰り返します。${REST}${main}` : main;
+        }).join(REST);
+    }
+    produceSeparationOfOoazaKoaza(rawName) {
+        const REST = "、、、、、、";
+        const cleanName = rawName.replace("大字", "");
+        const [ooaza, koaza] = cleanName.split("字");
+        if (koaza) {
+            const detail = rawName.includes("大字")
+                ? `おおあざ${REST}${ooaza}${REST}あざ${REST}${koaza}`
+                : `${ooaza}${REST}あざ${REST}${koaza}`;
+            return [detail, `${ooaza}の${REST}${koaza}`];
         }
-        else {
-            const SPLIT_DATA = KOAZA_OOAZA.split("字");
-            var ooaza = SPLIT_DATA[0];
-            var koaza = SPLIT_DATA[1];
-            if (koaza === undefined) {
-                koaza = "";
-            }
-            var ooazaAndKoaza = ["", ""];
-            if (koaza) {
-                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`;
-                ooazaAndKoaza[1] = `${ooaza}の${REST_CONNMA}${koaza}`;
-            }
-            else {
-                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}`;
-                ooazaAndKoaza[1] = `${ooaza}`;
-            }
-        }
-        return ooazaAndKoaza;
+        return [`${ooaza}${REST}`, ooaza];
+    }
+    updatePreviousePlaceNames() {
+        const sides = ["CURRENT", "LEFT", "RIGHT"];
+        const data = {
+            CURRENT: { koaza: this.currentKoazaOoaza, city: this.current_cityName, pref: this.current_prefName },
+            LEFT: { koaza: this.leftKoazaOoaza, city: this.left_cityName, pref: this.left_prefName },
+            RIGHT: { koaza: this.rightKoazaOoaza, city: this.right_cityName, pref: this.right_prefName }
+        };
+        sides.forEach(side => {
+            this.previousKoaza[side] = data[side].koaza;
+            this.previousCityName[side] = data[side].city;
+            this.previousPrefName[side] = data[side].pref;
+        });
     }
     DisplayInfo() {
         const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza");
@@ -2131,12 +2081,20 @@ class History {
             void SAVE_PARAETER_BTN.offsetWidth;
             SAVE_PARAETER_BTN.classList.add("save-success");
         });
+        const SPEED_SLIDER = document.getElementById("speed-input");
+        const SPEED_DISPLAY = document.getElementById("speed-val");
+        SPEED_SLIDER.addEventListener("input", (e) => {
+            console.log(parseFloat(e.target.value).toFixed(1));
+            SPEED_DISPLAY.textContent = parseFloat(e.target.value).toFixed(1);
+        });
     }
     sendParameterToFirebse() {
         const ACCURACY_THRESHOLD_INPUT = document.getElementById("threshold-input");
         const RL_DISTANCE_INPUT = document.getElementById("distance-input");
+        const SPEED_DISPLAY = document.getElementById("speed-val");
         this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold", ACCURACY_THRESHOLD_INPUT.value);
         this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance", RL_DISTANCE_INPUT.value);
+        this.FIREBASE_FUNCTION.uploadData("yamato/speachSpeed", SPEED_DISPLAY.textContent);
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {

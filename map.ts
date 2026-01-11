@@ -2788,9 +2788,18 @@ const CONFIG =  {
 const FIREBASE_FUNCTION = new FirebaseFunctions(CONFIG,false);
 
 
+interface LocationData {
+    label: string;  // 「げんざい」「ひだり」「みぎ」など
+    name: string;
+    pref: string;
+    city: string;
+    type: "CURRENT" | "LEFT" | "RIGHT";
+}
 
-
-
+interface AnnounceGroup extends LocationData {
+    directionTitle: string;
+    repeat?: boolean;
+}
 class App{
     CURRENT_GEO_DATA!       : object;
     RIGHT_GEO_DATA!         : object;
@@ -2829,9 +2838,6 @@ class App{
 
     cnt : number;
 
-    activeSource            : any;
-    audioCtx                : any;
-
     constructor(FIREBASE_FUNCTION : FirebaseFunctions){
         this.APP_START_TIME = Date.now();
 
@@ -2846,9 +2852,6 @@ class App{
         this.previousKoaza = { CURRENT: "", LEFT: "", RIGHT: "" };
         this.previousCityName = { CURRENT: "", LEFT: "", RIGHT: "" };
         this.previousPrefName = { CURRENT: "", LEFT: "", RIGHT: "" };
-
-        this.activeSource = null;
-        this.audioCtx = new window.AudioContext();
 
         this.init();
     }
@@ -2869,14 +2872,18 @@ class App{
     private async loadUserParameterAndInput() {
         try {
             // 1. データのダウンロードを確実に待機
-            const [accuracyData, distanceData] = await Promise.all([
+            const [accuracyData, distanceData,speedData] = await Promise.all([
                 this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
-                this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance")
+                this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance"),
+                this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed")
             ]);
 
             // 2. 要素を HTMLInputElement として取得
-            const THRESHOLD_EL = document.getElementById("threshold-input") as HTMLInputElement;
-            const DISTANCE_EL = document.getElementById("distance-input") as HTMLInputElement;
+            const THRESHOLD_EL      = document.getElementById("threshold-input")    as HTMLInputElement;
+            const DISTANCE_EL       = document.getElementById("distance-input")     as HTMLInputElement;
+            const SPEED_DISPLAY     = document.getElementById("speed-input")        as HTMLInputElement;
+            const SPEED_VAL         = document.getElementById("speed-val")          as HTMLElement;
+
 
             // 3. .value を使って値をセット（データがない場合はデフォルト値を表示）
             if (THRESHOLD_EL) {
@@ -2889,6 +2896,14 @@ class App{
                 DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
                 // 視覚的エフェクトをトリガー
                 DISTANCE_EL.classList.add('setting-updated');
+            }
+
+            if(SPEED_DISPLAY){
+                SPEED_DISPLAY.value   = speedData;
+                SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
+
+                SPEED_DISPLAY.classList.add("setting-updated");
+                
             }
 
             console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
@@ -3009,6 +3024,11 @@ class App{
             this.loadCityDataSystem();
 
             this.Announce();
+            
+            // 履歴の更新
+            this.updatePreviousePlaceNames();
+
+            this.addHistoryLog();
             this.DisplayInfo();
 
 
@@ -3282,287 +3302,193 @@ class App{
         return PREF_NAME === this.previousPrefName[KEY] ? true : false;
     }
 
-    async Announce(){
-        if(this.isOoazaAndKoazaSame(this.currentKoazaOoaza,"CURRENT") && this.isOoazaAndKoazaSame(this.leftKoazaOoaza,"LEFT") && this.isOoazaAndKoazaSame(this.rightKoazaOoaza,"RIGHT")){
-            // もし、現在地点、左方向移動地点、右方向移動地点の地名が同じ場合はskip
-            // console.log("in announce false :skip")
-        }else{
-            // window.speechSynthesis.cancel();
-            const CONTENT = this.writeAnnounceContent();
-            // console.log(CONTENT);
-            const UTTR = new SpeechSynthesisUtterance(CONTENT);
-            UTTR.lang = "ja-JP";
-            UTTR.rate = 0.8;
-            UTTR.pitch = 2.0;
-            // // console.log("in anouunce true")
-            // window.speechSynthesis.speak(UTTR);
+    Announce(){
+        // 1. どこかに変化があるかチェック（前回と全く同じなら何もしない）
+        const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
+        const hasLeftChanged    = !this.isOoazaAndKoazaSame(this.leftKoazaOoaza, "LEFT");
+        const hasRightChanged   = !this.isOoazaAndKoazaSame(this.rightKoazaOoaza, "RIGHT");
 
-            if(this.activeSource){
-                try {
-                    this.activeSource.stop();
-                } catch (e) {
-                    // すでに終了している場合の書き込みエラーを無視
+        if (!hasCurrentChanged && !hasLeftChanged && !hasRightChanged) {
+            return; // どこも変わってなければ終了
+        }
+
+        window.speechSynthesis.cancel();
+        const CONTENT = this.writeAnnounceContent(hasCurrentChanged,hasLeftChanged,hasRightChanged);
+
+
+        const UTTR = new SpeechSynthesisUtterance(CONTENT);
+        UTTR.lang = "ja-JP";
+
+        const SPEED_SLIDER = document.getElementById("speed-val") as HTMLElement;
+        UTTR.rate = parseFloat(SPEED_SLIDER.textContent);
+        
+        UTTR.pitch = 1.0;
+        // console.log("in anouunce true")
+        window.speechSynthesis.speak(UTTR);        
+    }
+
+
+    private writeAnnounceContent(hasCurrentChanged: boolean, hasLeftChanged: boolean, hasRightChanged: boolean) {
+        const REST = "、、、、、、";
+
+        // LOC_REC の各プロパティが LocationData 型であることを明示
+        const LOC_REC: Record<"CURRENT" | "LEFT" | "RIGHT", LocationData> = {
+                CURRENT: { 
+                    label: "げんざい", 
+                    name: this.currentKoazaOoaza, 
+                    pref: this.current_prefName, 
+                    city: this.current_cityName, 
+                    type: "CURRENT" 
+                },
+                LEFT: { 
+                    label: "ひだり", 
+                    name: this.leftKoazaOoaza,    
+                    pref: this.left_prefName,    
+                    city: this.left_cityName,    
+                    type: "LEFT" 
+                },
+                RIGHT: { 
+                    label: "みぎ", 
+                    name: this.rightKoazaOoaza,   
+                    pref: this.right_prefName,   
+                    city: this.right_cityName,   
+                    type: "RIGHT" 
                 }
-            }
-            if(this.audioCtx.state === "suspended"){
-                await this.audioCtx.resume();
-            }
-            const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(UTTR.text)}&tl=${UTTR.lang}&client=tw-ob`;
-            try {
-                const response = await fetch(ttsUrl);
-                const arrayBuffer = await response.arrayBuffer();
-                const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
-
-                const source = this.audioCtx.createBufferSource();
-                const gainNode = this.audioCtx.createGain();
-
-                gainNode.gain.value = 10.0; // 爆音設定
-                source.buffer = audioBuffer;
-                
-                source.connect(gainNode);
-                gainNode.connect(this.audioCtx.destination);
-
-                // 再生中のソースを保存（次の再生時に止めるため）
-                this.activeSource = source;
-
-                // ★「話し終わったら次を再生する」ためのイベント
-                source.onended = () => {
-                    console.log("再生が終了しました");
-                    if (this.activeSource === source) {
-                        this.activeSource = null;
-                    }
-                    // 必要であればここで「次のキュー」を呼び出す
-                    // this.onAnnounceEnd(); 
-                };
-
-                source.start(0);
-            } catch (e) {
-                console.error("再生エラー:", e);
-            }
-
-            // this.previousKoaza.CURRENT = this.currentKoazaOoaza;
-            // this.previousKoaza.LEFT    = this.leftKoazaOoaza;
-            // this.previousKoaza.RIGHT   = this.rightKoazaOoaza;
-            const sides = ["CURRENT", "LEFT", "RIGHT"] as const;
-            const data = {
-                CURRENT: { koaza: this.currentKoazaOoaza, city: this.current_cityName, pref: this.current_prefName },
-                LEFT:    { koaza: this.leftKoazaOoaza,    city: this.left_cityName,    pref: this.left_prefName },
-                RIGHT:   { koaza: this.rightKoazaOoaza,   city: this.right_cityName,   pref: this.right_prefName }
             };
 
-            sides.forEach(side => {
-                this.previousKoaza[side]    = data[side].koaza;
-                this.previousCityName[side] = data[side].city;
-                this.previousPrefName[side] = data[side].pref;
+        // 1. 変化があった方位のキーを配列に入れる (例: ["CURRENT", "LEFT"])
+        const changedKeys: ("CURRENT" | "LEFT" | "RIGHT")[] = [];
+        if (hasCurrentChanged) changedKeys.push("CURRENT");
+        if (hasLeftChanged)    changedKeys.push("LEFT");
+        if (hasRightChanged)   changedKeys.push("RIGHT");
+
+
+        // 2. 方位のグループ化（読み上げの「主語」を決定）
+        let groups :AnnounceGroup[] = [];
+
+        // 2. 変化した方位同士の地名を比較してグループ化
+        if (changedKeys.length === 3 && 
+            LOC_REC.CURRENT.name === LOC_REC.LEFT.name && 
+            LOC_REC.LEFT.name === LOC_REC.RIGHT.name) {
+            
+            // ケース1: 全方位が同時に同じ地名に変わった
+            groups.push({ ...LOC_REC.CURRENT, directionTitle: "ぜんほうい", repeat: true });
+
+        }else if(LOC_REC.CURRENT.name === LOC_REC.LEFT.name  && LOC_REC.CURRENT.name === LOC_REC.RIGHT.name){
+            // いずれかに変化があり、結果三方一致した場合
+            groups.push({ ...LOC_REC.CURRENT, directionTitle: "ぜんほうい", repeat: true });
+        }else {
+            // ケース2: 変化があった方位の中で、同じ地名のものをまとめる
+            // 判定用の作業配列 
+            // ※注釈 Set<>()は重複のない集合objectです。hasで要素の有無を調べ、addで新たな要素を入れられます。
+            //　 Array（配列）と異なり、同じ要素をaddしても重複しません。また、hasは高速検索機能があります。
+            const handled = new Set<string>();
+
+            changedKeys.forEach(key => {
+                if (handled.has(key)) return;
+
+
+                // ※fileterについて
+                //   このメソッドはfilter(条件)として使います。
+                // 　これは、条件に合った要素のみを抽出して、新たな配列を作ります。
+                const sameNameKeys = changedKeys.filter(otherKey => 
+                    // 他の変化した方位の中に、同じ地名のものがあるか探し、抽出。
+                    LOC_REC[key].name === LOC_REC[otherKey].name
+                );
+
+                // ラベルの組み立て (例: "げんざいとひだりは")
+                let title = "";
+                if (sameNameKeys.length === 3) {
+                    title = "ぜんほうい";
+                } else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("LEFT")) {
+                    title = "げんざいとひだりは";
+                } else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("RIGHT")) {
+                    title = "げんざいとみぎは";
+                } else if (sameNameKeys.includes("LEFT") && sameNameKeys.includes("RIGHT")) {
+                    title = "さゆう";
+                } else {
+                    title = LOC_REC[key].label; // 単独
+                }
+
+                groups.push({ ...LOC_REC[key], directionTitle: title });
+
+                // 処理済みリストに追加
+                sameNameKeys.forEach(k => handled.add(k));
             });
-
-            this.addHistoryLog();
         }
-    }
+            // =====================================================================================
+            // TIPS: 今回geminiがスプレッド構文を紹介してくれました。
+            // スプレッド構文 { ．．．PARENT.KEY}
+            // 構文なしで書くと以下のようになります。　　　　　　　　スプレッド構文だとこうなります。
+                // groups.push({                               groups.push({
+                //     label: LOC_REC.CURRENT.label,                  ...LOC_REC.CURRENT,
+                //     name:  LOC_REC.CURRENT.name,　　　　　　　　　　　　　　
+                //     pref:  LOC_REC.CURRENT.pref,　　　　　　　　　   //新しく追加
+                //     city:  LOC_REC.CURRENT.city,　　　　　　　　　   directionTitle: ["ぜんほうい"],
+                //     type:  LOC_REC.CURRENT.type,                    repeat: true
+                //                                                 });
+                //     // 新しく追加
+                //     directionTitle: ["ぜんほうい"], 
+                //     repeat: true 
+                // });
+            // レコードの同一keyをすべて展開できるのが　スプレッド構文です。可読性があがりますね。
+            // =========================================================================================
 
-    writeAnnounceContent(){
+        // 3. 各グループを文章化して連結
+        return groups.map(g => {
+            // 都道府県・市町村を含めるか判定
+            let prefix = "";
+            const isPrefDiff = !this.isPrefNameSame(g.pref, g.type);
+            const isCityDiff = !this.isCityNameSame(g.city, g.type);
 
-        if(this.currentKoazaOoaza === this.leftKoazaOoaza && this.leftKoazaOoaza === this.rightKoazaOoaza){
-            // 現在地・左地点・右地点が同一の場合
-            return this.produceAllSameContent();
-
-        }else if(this.leftKoazaOoaza === this.rightKoazaOoaza){
-            return this.produceCurrentContent() + this.produceLeftRightSameContent();
-
-        }else if(this.currentKoazaOoaza === this.leftKoazaOoaza){
-            console.log("in CL and R")
-            return this.produceLeftCurrentSameContent() + this.produceRightContent();
-
-        }else if(this.currentKoazaOoaza === this.rightKoazaOoaza){
-            return this.produceRightCurrentSameContent() + this.produceLeftContent();
-
-        }
-        
-    }
-    private produceAllSameContent(){
-                
-        const REST_CONNMA   = "、、、、、、";
-        
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-        
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.current_prefName,"CURRENT") && this.isCityNameSame(this.current_cityName,"CURRENT")){
-            const RAW_CONTENT =  `げんざい、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            sentences =  RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }else if(this.isPrefNameSame(this.current_prefName,"CURRENT") === false){
-
-
-            const RAW_CONTENT =  `げんざい、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            sentences  = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }else if(this.isCityNameSame(this.current_cityName,"CURRENT") === false){
-            const RAW_CONTENT =  `げんざい、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            sentences  = RAW_CONTENT + `繰り返します。${REST_CONNMA}` + RAW_CONTENT;
-        }
-
-        return "左右・全方位にかけて" + sentences;
-    }
-    private produceCurrentContent(){
-        const REST_CONNMA   = "、、、、、、";
-        
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-        
-
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.current_prefName,"CURRENT") && this.isCityNameSame(this.current_cityName,"CURRENT")){
-            sentences =  `げんざい、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-   
-        }else if(this.isPrefNameSame(this.current_prefName,"CURRENT") === false){
-            sentences =  `げんざい、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            
-        }else if(this.isCityNameSame(this.current_cityName,"CURRENT") === false){
-            sentences =  `げんざい、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-        }
-
-        return sentences;
-    }
-    private produceLeftRightSameContent(){
-        const REST_CONNMA   = "、、、、、、";
-        
-
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.leftKoazaOoaza);
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.left_prefName,"LEFT") && this.isCityNameSame(this.left_cityName,"LEFT")){
-            sentences =  `左右方面は、${this.leftKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-   
-        }else if(this.isPrefNameSame(this.left_prefName,"LEFT") === false){
-            sentences =  `左右方面は、${this.left_prefName}${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            
-        }else if(this.isCityNameSame(this.left_cityName,"LEFT") === false){
-            sentences =  `左右方面は、${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${this.left_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-        }
-
-        return sentences;
-    }
-    private produceLeftCurrentSameContent(){
-        const REST_CONNMA   = "、、、、、、";
-        
-
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.left_prefName,"LEFT") && this.isCityNameSame(this.left_cityName,"LEFT")){
-            sentences =  `左方面と現在地点は、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-   
-        }else if(this.isPrefNameSame(this.left_prefName,"LEFT") === false){
-            sentences =  `左方面と現在地点は、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            
-        }else if(this.isCityNameSame(this.left_cityName,"LEFT") === false){
-            sentences =  `左方面と現在地点は、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-        }
-
-        return sentences;
-    }
-    private produceRightCurrentSameContent(){
-        const REST_CONNMA   = "、、、、、、";
-        
-
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.currentKoazaOoaza);
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.right_prefName,"RIGHT") && this.isCityNameSame(this.right_cityName,"RIGHT")){
-            sentences =  `右方面と現在地点は、${this.currentKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-   
-        }if(this.isPrefNameSame(this.right_prefName,"RIGHT") === false){
-
-            sentences =  `右方面と現在地点は、${this.current_prefName}${REST_CONNMA}${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            
-        }else if(this.isCityNameSame(this.right_cityName,"RIGHT") === false){
-            sentences =  `右方面と現在地点は、${this.current_cityName}${REST_CONNMA}${this.currentKoazaOoaza}。${this.current_cityName}${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-        }
-
-        return sentences;
-    }
-    private produceLeftContent(){
-        const REST_CONNMA   = "、、、、、、";
-        
-
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.leftKoazaOoaza);
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.left_prefName,"LEFT") && this.isCityNameSame(this.left_cityName,"LEFT")){
-            sentences =  `左方面は、${this.leftKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-   
-        }else if(this.isPrefNameSame(this.left_prefName,"LEFT") === false){
-
-            sentences =  `左方面は、${this.left_prefName}${REST_CONNMA}${this.left_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-            
-        }else if(this.isCityNameSame(this.left_cityName,"LEFT") === false){
-            sentences =  `左方面は、${this.current_cityName}${REST_CONNMA}${this.leftKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-        }
-
-        return sentences;
-    }
-    private produceRightContent(){
-        const REST_CONNMA   = "、、、、、、";
-        
-
-        var ooazaAndKoaza = this.produceSeparationOfOoazaKoaza(this.rightKoazaOoaza);
-
-        var sentences = "";
-        if(this.isPrefNameSame(this.right_prefName,"RIGHT") && this.isCityNameSame(this.right_cityName,"RIGHT")){
-            sentences =  `右方面は、${this.rightKoazaOoaza}。${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-   
-        }else if(this.isPrefNameSame(this.right_prefName,"RIGHT") === false){
-            sentences =  `右方面は、${this.right_prefName}${REST_CONNMA}${this.right_cityName}${REST_CONNMA}${this.rightKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${this.right_prefName}${REST_CONNMA}${this.right_cityName}${ooazaAndKoaza[1]}にはいりました。`
-            
-        }else if(this.isCityNameSame(this.right_cityName,"RIGHT") === false){
-            sentences =  `右方面は、${this.right_cityName}${REST_CONNMA}${this.rightKoazaOoaza}。${REST_CONNMA}${ooazaAndKoaza[0]}${REST_CONNMA}${ooazaAndKoaza[1]}にはいりました。`
-        }
-
-        return sentences;
-    }
-
-
-    private produceSeparationOfOoazaKoaza(KOAZA_OOAZA : string) : string[]{
-        const REST_CONNMA   = "、、、、、、";
-
-        if(KOAZA_OOAZA.includes("大字")){
-            const RAW_DATA = KOAZA_OOAZA.replace("大字","")
-            const SPLIT_DATA = RAW_DATA.split("字");
-            console.log(SPLIT_DATA);
-            var ooaza      = SPLIT_DATA[0]
-            var koaza      = SPLIT_DATA[1]
-            if(koaza === undefined){
-                koaza = "";
+            if (isPrefDiff) {
+                prefix = `${g.pref}${g.city}${REST}`;
+            } else if (isCityDiff) {
+                prefix = `${g.city}${REST}`;
             }
 
-            var ooazaAndKoaza : string[]= ["",""];
-            if(koaza){
-                ooazaAndKoaza[0] = `おおあざ${REST_CONNMA}${ooaza}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`
-                ooazaAndKoaza[1] = `${ooaza}の${REST_CONNMA}${koaza}`
+            const parts = this.produceSeparationOfOoazaKoaza(g.name);
+            var main : string = "";
+            if(g.directionTitle === "ぜんほうい"){
+                main = `${g.directionTitle}、${prefix}${g.name}。${parts[0]}${REST}${parts[1]}にはいりました。`;
             }else{
-                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}`
-                ooazaAndKoaza[1] = `${ooaza}`
+                main = `${g.directionTitle}、${parts[1]}。`
             }
+         
+            return g.repeat ? `${main}繰り返します。${REST}${main}` : main;
+        }).join(REST);
+    }
+    private produceSeparationOfOoazaKoaza(rawName: string): string[] {
+        const REST = "、、、、、、";
+        // "大字"を削り、"字"で分割
+        const cleanName = rawName.replace("大字", "");
+        const [ooaza, koaza] = cleanName.split("字");
 
-        }else{
-            const SPLIT_DATA    = KOAZA_OOAZA.split("字");
-            var   ooaza         = SPLIT_DATA[0];
-            var   koaza         = SPLIT_DATA[1];
-            if(koaza === undefined){
-                koaza = "";
-            }
-
-
-            var ooazaAndKoaza : string[]= ["",""];
-            if(koaza){
-                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}あざ${REST_CONNMA}${koaza}`
-                ooazaAndKoaza[1] = `${ooaza}の${REST_CONNMA}${koaza}`
-            }else{
-                ooazaAndKoaza[0] = `${ooaza}${REST_CONNMA}`
-                ooazaAndKoaza[1] = `${ooaza}`
-            }
+        if (koaza) {
+            // 読み上げ用の詳細形式と、短縮形式を返す
+            const detail = rawName.includes("大字") 
+                ? `おおあざ${REST}${ooaza}${REST}あざ${REST}${koaza}` 
+                : `${ooaza}${REST}あざ${REST}${koaza}`;
+            return [detail, `${ooaza}の${REST}${koaza}`];
         }
-    
-        return ooazaAndKoaza;   
+        
+        return [`${ooaza}${REST}`, ooaza];
+    }
+    private updatePreviousePlaceNames(){
+        // 履歴の更新
+        const sides = ["CURRENT", "LEFT", "RIGHT"] as const;
+        const data = {
+            CURRENT: { koaza: this.currentKoazaOoaza, city: this.current_cityName, pref: this.current_prefName },
+            LEFT:    { koaza: this.leftKoazaOoaza,    city: this.left_cityName,    pref: this.left_prefName },
+            RIGHT:   { koaza: this.rightKoazaOoaza,   city: this.right_cityName,   pref: this.right_prefName }
+        };
+
+        sides.forEach(side => {
+            this.previousKoaza[side]    = data[side].koaza;
+            this.previousCityName[side] = data[side].city;
+            this.previousPrefName[side] = data[side].pref;
+        });
+
     }
 
 
@@ -3655,16 +3581,24 @@ class History{
             void(SAVE_PARAETER_BTN as HTMLElement).offsetWidth;
             SAVE_PARAETER_BTN.classList.add("save-success");
         })
+
+        const SPEED_SLIDER  = document.getElementById("speed-input")    as HTMLElement;
+        const SPEED_DISPLAY = document.getElementById("speed-val")      as HTMLElement;
+        SPEED_SLIDER.addEventListener("input",(e : any) => {
+            console.log( parseFloat(e.target.value).toFixed(1))
+            SPEED_DISPLAY.textContent = parseFloat(e.target.value).toFixed(1);
+        })
     }
     sendParameterToFirebse(){
        
-        const ACCURACY_THRESHOLD_INPUT = document.getElementById("threshold-input") as HTMLInputElement;
+        const ACCURACY_THRESHOLD_INPUT  = document.getElementById("threshold-input") as HTMLInputElement;
+        const RL_DISTANCE_INPUT         = document.getElementById("distance-input")  as HTMLInputElement;
+        const SPEED_DISPLAY             = document.getElementById("speed-val")       as HTMLElement;
         
-        const RL_DISTANCE_INPUT = document.getElementById("distance-input") as HTMLInputElement;
-        
+
         this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold",ACCURACY_THRESHOLD_INPUT.value);
         this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance",RL_DISTANCE_INPUT.value);
-      
+        this.FIREBASE_FUNCTION.uploadData("yamato/speachSpeed",SPEED_DISPLAY.textContent);
     }
 
 

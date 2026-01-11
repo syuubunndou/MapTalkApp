@@ -88,6 +88,11 @@
                             <span class="info-label">左右距離 (m)</span>
                             <input type="number" id="distance-input" value="0">
                         </div>
+                        <div class="setting-item" style="grid-column: span 2; margin-top: 10px;">
+                            <span class="info-label">読み上げ速度: <span id="speed-val">1.0</span>x</span>
+                            <input type="range" id="speed-input" min="0.5" max="6.0" step="0.1" value="1.0" 
+                                style="width: 100%; cursor: pointer;">
+                        </div>
                     </div>
                     <button id="saveSettingsBtn" class="secondary-btn" style="margin-top: 10px; padding: 10px; border-radius: 12px; border: none; background: var(--accent); color: white; font-weight: 600; cursor: pointer;">
                         設定を保存する

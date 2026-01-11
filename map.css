@@ -335,3 +335,19 @@ footer {
 .save-success {
     animation: highlight-flash 0.8s ease-out;
 }
+
+/* map.css の最後の方に追加 */
+input[type="range"] {
+    accent-color: var(--primary); /* スライダーのつまみの色を青にする */
+    height: 8px;
+    background: #E5E5EA;
+    border-radius: 5px;
+    outline: none;
+}
+
+/* スライダーのラベル表示を見やすく */
+#speed-val {
+    font-weight: 700;
+    color: var(--primary);
+    font-size: 0.9rem;
+}
