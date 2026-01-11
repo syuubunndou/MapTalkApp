@@ -355,52 +355,44 @@ input[type="range"] {
 
 /* カメラコンテナ */
 .camera-container {
-    position: absolute;
-    top: 8.5%; /* カードの上からの位置調整 */
-    right: 50px; /* カードの右からの位置調整 */
-    width: 95px; /* カードの幅の20% */
-    height: 95px; /* カードの高さの40% */
-    background-color: black;
-    border-radius: 12px;
-    overflow: hidden; /* 映像がはみ出さないように */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 50; /* 他の要素より手前に表示 */
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    transition: opacity 0.3s ease;
+    position: relative; /* relativeに変更 */
+    width: 100%;        /* カードと同じ幅にする */
+    height: 100%;      /* 高さは固定、または40vhなど適宜調整 */
+    background-color: #000;
+    border-radius: 24px; /* カードのデザインに合わせる */
+    margin-bottom: 15px; /* 下のカードとの隙間 */
+    overflow: hidden;
+    display: block;      /* 基本はblock */
+    transition: all 0.3s ease;
 }
 
+/* 非表示状態 */
 .camera-container.hidden {
-    opacity: 0;
-    pointer-events: none; /* クリックイベントを受け付けない */
+    display: none;       /* 完全に消してスペースを詰め合わせる */
 }
 
-/* カメラ映像 */
 #camera-feed {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* 映像がコンテナいっぱいに広がるように */
-    transform: scaleX(-1); /* フロントカメラの場合、左右反転して自然な鏡像にする */
+    object-fit: cover;
+    /* 背面カメラを使う場合は scaleX(-1) は不要（鏡にならないため） */
 }
 
-/* 閉じるボタン */
 .close-camera-btn {
     position: absolute;
-    top: 5px;
-    right: 5px;
+    top: 15px;
+    right: 15px;
     background: rgba(0, 0, 0, 0.5);
     color: white;
     border: none;
     border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    font-size: 1.2rem;
+    width: 32px;
+    height: 32px;
+    font-size: 1.5rem;
     display: flex;
     justify-content: center;
     align-items: center;
     cursor: pointer;
-    z-index: 60; /* カメラ映像より手前に */
 }
 
 /* カメラON/OFFボタン（既存のsecondary-btnを利用） */
