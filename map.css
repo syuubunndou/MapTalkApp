@@ -356,10 +356,10 @@ input[type="range"] {
 /* カメラコンテナ */
 .camera-container {
     position: absolute;
-    top: 8%; /* カードの上からの位置調整 */
+    top: 8.5%; /* カードの上からの位置調整 */
     right: 50px; /* カードの右からの位置調整 */
-    width: 90px; /* カードの幅の20% */
-    height: 90px; /* カードの高さの40% */
+    width: 95px; /* カードの幅の20% */
+    height: 95px; /* カードの高さの40% */
     background-color: black;
     border-radius: 12px;
     overflow: hidden; /* 映像がはみ出さないように */
