@@ -3167,8 +3167,8 @@ class App{
     }
     private calcEachSidePoint(CURRENT_LATITUDE : number, CURRENT_LONGITUDE : number, DIRECTION_RECORD : Record<string,number>, DISTANCE : number) : Record<string,any>{
         return {
-                    LEFT_POINT  : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.rightDir,DISTANCE),
-                    RIGHT_POINT : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.leftDir,DISTANCE)
+                    LEFT_POINT  : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.leftDir,DISTANCE),
+                    RIGHT_POINT : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.rightDir,DISTANCE)
                 }
     }
     // ==============================================================================
