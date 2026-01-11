@@ -1891,7 +1891,7 @@ class App {
             console.log(CONTENT);
             const UTTR = new SpeechSynthesisUtterance(CONTENT);
             UTTR.lang = "ja-JP";
-            UTTR.rate = 1.2;
+            UTTR.rate = 0.8;
             UTTR.pitch = 1.0;
             window.speechSynthesis.speak(UTTR);
             const sides = ["CURRENT", "LEFT", "RIGHT"];
@@ -2181,7 +2181,6 @@ class History {
             <span class="calendar-icon">📅</span>
             <span class="date-text">${dateKey}</span>
         </div>
-
         `;
         LIST.className = "history-summary-item";
         return LIST;
@@ -2211,5 +2210,3 @@ APP_START_BTN.addEventListener("click", () => {
 });
 const HISTORY = new History(FIREBASE_FUNCTION);
 //# sourceMappingURL=map.js.map
-
-

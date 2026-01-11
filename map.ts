@@ -2829,6 +2829,9 @@ class App{
 
     cnt : number;
 
+    activeSource            : any;
+    audioCtx                : any;
+
     constructor(FIREBASE_FUNCTION : FirebaseFunctions){
         this.APP_START_TIME = Date.now();
 
@@ -2843,6 +2846,9 @@ class App{
         this.previousKoaza = { CURRENT: "", LEFT: "", RIGHT: "" };
         this.previousCityName = { CURRENT: "", LEFT: "", RIGHT: "" };
         this.previousPrefName = { CURRENT: "", LEFT: "", RIGHT: "" };
+
+        this.activeSource = null;
+        this.audioCtx = new window.AudioContext();
 
         this.init();
     }
@@ -3276,20 +3282,63 @@ class App{
         return PREF_NAME === this.previousPrefName[KEY] ? true : false;
     }
 
-    Announce(){
+    async Announce(){
         if(this.isOoazaAndKoazaSame(this.currentKoazaOoaza,"CURRENT") && this.isOoazaAndKoazaSame(this.leftKoazaOoaza,"LEFT") && this.isOoazaAndKoazaSame(this.rightKoazaOoaza,"RIGHT")){
             // もし、現在地点、左方向移動地点、右方向移動地点の地名が同じ場合はskip
             // console.log("in announce false :skip")
         }else{
-            window.speechSynthesis.cancel();
+            // window.speechSynthesis.cancel();
             const CONTENT = this.writeAnnounceContent();
-            console.log(CONTENT);
+            // console.log(CONTENT);
             const UTTR = new SpeechSynthesisUtterance(CONTENT);
             UTTR.lang = "ja-JP";
             UTTR.rate = 0.8;
-            UTTR.pitch = 1.0;
-            // console.log("in anouunce true")
-            window.speechSynthesis.speak(UTTR);
+            UTTR.pitch = 2.0;
+            // // console.log("in anouunce true")
+            // window.speechSynthesis.speak(UTTR);
+
+            if(this.activeSource){
+                try {
+                    this.activeSource.stop();
+                } catch (e) {
+                    // すでに終了している場合の書き込みエラーを無視
+                }
+            }
+            if(this.audioCtx.state === "suspended"){
+                await this.audioCtx.resume();
+            }
+            const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(UTTR.text)}&tl=${UTTR.lang}&client=tw-ob`;
+            try {
+                const response = await fetch(ttsUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+
+                const source = this.audioCtx.createBufferSource();
+                const gainNode = this.audioCtx.createGain();
+
+                gainNode.gain.value = 10.0; // 爆音設定
+                source.buffer = audioBuffer;
+                
+                source.connect(gainNode);
+                gainNode.connect(this.audioCtx.destination);
+
+                // 再生中のソースを保存（次の再生時に止めるため）
+                this.activeSource = source;
+
+                // ★「話し終わったら次を再生する」ためのイベント
+                source.onended = () => {
+                    console.log("再生が終了しました");
+                    if (this.activeSource === source) {
+                        this.activeSource = null;
+                    }
+                    // 必要であればここで「次のキュー」を呼び出す
+                    // this.onAnnounceEnd(); 
+                };
+
+                source.start(0);
+            } catch (e) {
+                console.error("再生エラー:", e);
+            }
 
             // this.previousKoaza.CURRENT = this.currentKoazaOoaza;
             // this.previousKoaza.LEFT    = this.leftKoazaOoaza;
