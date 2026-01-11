@@ -2836,7 +2836,9 @@ class App{
 
     FIREBASE_FUNCTION       : FirebaseFunctions;
 
-    cnt : number;
+    cnt                     : number;
+
+    intervalID!             : any;
 
     constructor(FIREBASE_FUNCTION : FirebaseFunctions){
         this.APP_START_TIME = Date.now();
@@ -2864,18 +2866,48 @@ class App{
 
         await this.loadUserParameterAndInput();
 
-        setInterval(() => {
-                this.initAfterAndGetCurrentPosition();
-        }, 1000);
+        this.intervalSystem();
+
+        this.attachEvent();
+
        
     }
+
+    attachEvent(){
+        const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
+        INTERVAL_INPUT.addEventListener("input",()=>{
+            this.intervalSystem();
+        })
+    }
+
+    intervalSystem(){
+        if(this.intervalID){
+            this.resetInterval();
+            this.setNewInterval();
+        }else{
+            this.setNewInterval();
+        }
+    }
+    private setNewInterval(){
+        const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
+        const INTERVAL_SECOND   = parseInt(INTERVAL_INPUT.value)*1000; 
+        this.intervalID = setInterval(() => {
+                                                    this.initAfterAndGetCurrentPosition();
+                                            }, INTERVAL_SECOND);
+    }
+    private resetInterval(){
+        clearInterval(this.intervalID);
+        this.intervalID = null;
+    }
+
     private async loadUserParameterAndInput() {
         try {
             // 1. データのダウンロードを確実に待機
-            const [accuracyData, distanceData,speedData] = await Promise.all([
+            const [accuracyData, distanceData,speedData,intervalData] = await Promise.all([
                 this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
                 this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance"),
-                this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed")
+                this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed"),
+                this.FIREBASE_FUNCTION.downloadData("yamato/interval")
             ]);
 
             // 2. 要素を HTMLInputElement として取得
@@ -2883,7 +2915,7 @@ class App{
             const DISTANCE_EL       = document.getElementById("distance-input")     as HTMLInputElement;
             const SPEED_DISPLAY     = document.getElementById("speed-input")        as HTMLInputElement;
             const SPEED_VAL         = document.getElementById("speed-val")          as HTMLElement;
-
+            const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
 
             // 3. .value を使って値をセット（データがない場合はデフォルト値を表示）
             if (THRESHOLD_EL) {
@@ -2906,6 +2938,13 @@ class App{
                 
             }
 
+            if (INTERVAL_INPUT) {
+                INTERVAL_INPUT.value = intervalData !== undefined ? intervalData : "1";
+                // 視覚的エフェクトをトリガー
+                INTERVAL_INPUT.classList.add('setting-updated');
+            }
+
+
             console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
 
         } catch (error) {
@@ -2914,7 +2953,7 @@ class App{
     }
 
     private setupSettingEffect() {
-        const inputs = ['threshold-input', 'distance-input'];
+        const inputs = ['threshold-input', 'distance-input',"interval-input"];
         
         inputs.forEach(id => {
             const el = document.getElementById(id) as HTMLInputElement;
@@ -3591,18 +3630,19 @@ class History{
             SPEED_DISPLAY.textContent = parseFloat(e.target.value).toFixed(1);
         })
 
-
+ 
     }
     sendParameterToFirebse(){
        
         const ACCURACY_THRESHOLD_INPUT  = document.getElementById("threshold-input") as HTMLInputElement;
         const RL_DISTANCE_INPUT         = document.getElementById("distance-input")  as HTMLInputElement;
         const SPEED_DISPLAY             = document.getElementById("speed-val")       as HTMLElement;
-        
+        const INTERVAL_INPUT            = document.getElementById("interval-input") as HTMLInputElement;
 
         this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold",ACCURACY_THRESHOLD_INPUT.value);
         this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance",RL_DISTANCE_INPUT.value);
         this.FIREBASE_FUNCTION.uploadData("yamato/speachSpeed",SPEED_DISPLAY.textContent);
+        this.FIREBASE_FUNCTION.uploadData("yamato/interval",INTERVAL_INPUT.value)
     }
 
 

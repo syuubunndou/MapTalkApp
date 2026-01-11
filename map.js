@@ -1607,23 +1607,50 @@ class App {
             yield this.initAfterAndGetCurrentPosition();
             this.setupSettingEffect();
             yield this.loadUserParameterAndInput();
-            setInterval(() => {
-                this.initAfterAndGetCurrentPosition();
-            }, 1000);
+            this.intervalSystem();
+            this.attachEvent();
         });
+    }
+    attachEvent() {
+        const INTERVAL_INPUT = document.getElementById("interval-input");
+        INTERVAL_INPUT.addEventListener("input", () => {
+            this.intervalSystem();
+        });
+    }
+    intervalSystem() {
+        if (this.intervalID) {
+            this.resetInterval();
+            this.setNewInterval();
+        }
+        else {
+            this.setNewInterval();
+        }
+    }
+    setNewInterval() {
+        const INTERVAL_INPUT = document.getElementById("interval-input");
+        const INTERVAL_SECOND = parseInt(INTERVAL_INPUT.value) * 1000;
+        this.intervalID = setInterval(() => {
+            this.initAfterAndGetCurrentPosition();
+        }, INTERVAL_SECOND);
+    }
+    resetInterval() {
+        clearInterval(this.intervalID);
+        this.intervalID = null;
     }
     loadUserParameterAndInput() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const [accuracyData, distanceData, speedData] = yield Promise.all([
+                const [accuracyData, distanceData, speedData, intervalData] = yield Promise.all([
                     this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
                     this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance"),
-                    this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed")
+                    this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed"),
+                    this.FIREBASE_FUNCTION.downloadData("yamato/interval")
                 ]);
                 const THRESHOLD_EL = document.getElementById("threshold-input");
                 const DISTANCE_EL = document.getElementById("distance-input");
                 const SPEED_DISPLAY = document.getElementById("speed-input");
                 const SPEED_VAL = document.getElementById("speed-val");
+                const INTERVAL_INPUT = document.getElementById("interval-input");
                 if (THRESHOLD_EL) {
                     THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
                     THRESHOLD_EL.classList.add('setting-updated');
@@ -1637,6 +1664,10 @@ class App {
                     SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
                     SPEED_DISPLAY.classList.add("setting-updated");
                 }
+                if (INTERVAL_INPUT) {
+                    INTERVAL_INPUT.value = intervalData !== undefined ? intervalData : "1";
+                    INTERVAL_INPUT.classList.add('setting-updated');
+                }
                 console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
             }
             catch (error) {
@@ -1645,7 +1676,7 @@ class App {
         });
     }
     setupSettingEffect() {
-        const inputs = ['threshold-input', 'distance-input'];
+        const inputs = ['threshold-input', 'distance-input', "interval-input"];
         inputs.forEach(id => {
             const el = document.getElementById(id);
             if (!el)
@@ -2092,9 +2123,11 @@ class History {
         const ACCURACY_THRESHOLD_INPUT = document.getElementById("threshold-input");
         const RL_DISTANCE_INPUT = document.getElementById("distance-input");
         const SPEED_DISPLAY = document.getElementById("speed-val");
+        const INTERVAL_INPUT = document.getElementById("interval-input");
         this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold", ACCURACY_THRESHOLD_INPUT.value);
         this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance", RL_DISTANCE_INPUT.value);
         this.FIREBASE_FUNCTION.uploadData("yamato/speachSpeed", SPEED_DISPLAY.textContent);
+        this.FIREBASE_FUNCTION.uploadData("yamato/interval", INTERVAL_INPUT.value);
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
