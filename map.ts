@@ -3028,7 +3028,7 @@ class App{
             // 履歴の更新
             this.updatePreviousePlaceNames();
 
-            this.addHistoryLog();
+       
             this.DisplayInfo();
 
 
@@ -3324,7 +3324,9 @@ class App{
         
         UTTR.pitch = 1.0;
         // console.log("in anouunce true")
-        window.speechSynthesis.speak(UTTR);        
+        window.speechSynthesis.speak(UTTR);   
+        
+        this.addHistoryLog();
     }
 
 

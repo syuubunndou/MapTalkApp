@@ -1713,7 +1713,6 @@ class App {
                 this.loadCityDataSystem();
                 this.Announce();
                 this.updatePreviousePlaceNames();
-                this.addHistoryLog();
                 this.DisplayInfo();
                 this.lastLongitude = CURRENT_LONGITUDE;
                 this.lastLatitude = CURRENT_LATITUDE;
@@ -1907,6 +1906,7 @@ class App {
         UTTR.rate = parseFloat(SPEED_SLIDER.textContent);
         UTTR.pitch = 1.0;
         window.speechSynthesis.speak(UTTR);
+        this.addHistoryLog();
     }
     writeAnnounceContent(hasCurrentChanged, hasLeftChanged, hasRightChanged) {
         const REST = "、、、、、、";
