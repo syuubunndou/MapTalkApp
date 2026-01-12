@@ -427,3 +427,9 @@ input[type="range"] {
     transition: all 0.2s ease;
 }
 */
+
+#mode-input {
+    text-align-last: center; /* 選択後の文字を中央寄せ */
+    color: var(--text);
+    font-weight: 600;
+}

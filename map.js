@@ -1616,6 +1616,10 @@ class App {
         INTERVAL_INPUT.addEventListener("input", () => {
             this.intervalSystem();
         });
+        const MODE_INPUT = document.getElementById("mode-input");
+        MODE_INPUT.addEventListener("input", () => {
+            this.loadUserParameterAndInput();
+        });
     }
     intervalSystem() {
         if (this.intervalID) {
@@ -1640,11 +1644,13 @@ class App {
     loadUserParameterAndInput() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
+                const MODE_INPUT = document.getElementById("mode-input");
+                const MODE = MODE_INPUT.value;
                 const [accuracyData, distanceData, speedData, intervalData] = yield Promise.all([
-                    this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
-                    this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance"),
-                    this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed"),
-                    this.FIREBASE_FUNCTION.downloadData("yamato/interval")
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/accuracyThreshold`),
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/rightLeftDistance`),
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/speachSpeed`),
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/interval`)
                 ]);
                 const THRESHOLD_EL = document.getElementById("threshold-input");
                 const DISTANCE_EL = document.getElementById("distance-input");
@@ -2124,10 +2130,12 @@ class History {
         const RL_DISTANCE_INPUT = document.getElementById("distance-input");
         const SPEED_DISPLAY = document.getElementById("speed-val");
         const INTERVAL_INPUT = document.getElementById("interval-input");
-        this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold", ACCURACY_THRESHOLD_INPUT.value);
-        this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance", RL_DISTANCE_INPUT.value);
-        this.FIREBASE_FUNCTION.uploadData("yamato/speachSpeed", SPEED_DISPLAY.textContent);
-        this.FIREBASE_FUNCTION.uploadData("yamato/interval", INTERVAL_INPUT.value);
+        const MODE_INPUT = document.getElementById("mode-input");
+        const MODE = MODE_INPUT.value;
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/accuracyThreshold`, ACCURACY_THRESHOLD_INPUT.value);
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/rightLeftDistance`, RL_DISTANCE_INPUT.value);
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/speachSpeed`, SPEED_DISPLAY.textContent);
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/interval`, INTERVAL_INPUT.value);
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {

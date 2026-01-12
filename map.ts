@@ -2878,6 +2878,11 @@ class App{
         INTERVAL_INPUT.addEventListener("input",()=>{
             this.intervalSystem();
         })
+
+        const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
+        MODE_INPUT.addEventListener("input",()=>{
+            this.loadUserParameterAndInput();
+        })
     }
 
     intervalSystem(){
@@ -2903,11 +2908,13 @@ class App{
     private async loadUserParameterAndInput() {
         try {
             // 1. データのダウンロードを確実に待機
+            const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
+            const MODE                      = MODE_INPUT.value;
             const [accuracyData, distanceData,speedData,intervalData] = await Promise.all([
-                this.FIREBASE_FUNCTION.downloadData("yamato/accuracyThreshold"),
-                this.FIREBASE_FUNCTION.downloadData("yamato/rightLeftDistance"),
-                this.FIREBASE_FUNCTION.downloadData("yamato/speachSpeed"),
-                this.FIREBASE_FUNCTION.downloadData("yamato/interval")
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/accuracyThreshold`  ),
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/rightLeftDistance`  ),
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/speachSpeed`        ),
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/interval`           )
             ]);
 
             // 2. 要素を HTMLInputElement として取得
@@ -3637,12 +3644,15 @@ class History{
         const ACCURACY_THRESHOLD_INPUT  = document.getElementById("threshold-input") as HTMLInputElement;
         const RL_DISTANCE_INPUT         = document.getElementById("distance-input")  as HTMLInputElement;
         const SPEED_DISPLAY             = document.getElementById("speed-val")       as HTMLElement;
-        const INTERVAL_INPUT            = document.getElementById("interval-input") as HTMLInputElement;
+        const INTERVAL_INPUT            = document.getElementById("interval-input")  as HTMLInputElement;
 
-        this.FIREBASE_FUNCTION.uploadData("yamato/accuracyThreshold",ACCURACY_THRESHOLD_INPUT.value);
-        this.FIREBASE_FUNCTION.uploadData("yamato/rightLeftDistance",RL_DISTANCE_INPUT.value);
-        this.FIREBASE_FUNCTION.uploadData("yamato/speachSpeed",SPEED_DISPLAY.textContent);
-        this.FIREBASE_FUNCTION.uploadData("yamato/interval",INTERVAL_INPUT.value)
+        const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
+        const MODE                      = MODE_INPUT.value;
+
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/accuracyThreshold`,ACCURACY_THRESHOLD_INPUT.value );
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/rightLeftDistance`,RL_DISTANCE_INPUT.value        );
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/speachSpeed`      ,SPEED_DISPLAY.textContent      );
+        this.FIREBASE_FUNCTION.uploadData(`yamato/${MODE}/interval`         ,INTERVAL_INPUT.value           )
     }
 
 

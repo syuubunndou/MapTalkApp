@@ -101,8 +101,26 @@
                             <span class="info-label">読み取り間隔 (秒)</span>
                             <input type="number" id="interval-input" value="1" min="1" step="1">
                         </div>
-                        <div class="setting-item">
-                            </div>
+                       <div class="setting-item">
+                            <span class="info-label">移動モード</span>
+                            <select id="mode-input" style="
+                                width: 100%; 
+                                box-sizing: border-box; 
+                                border: 1px solid #E5E5EA; 
+                                border-radius: 10px; 
+                                padding: 10px 4px; 
+                                font-size: 1rem; 
+                                text-align: center; 
+                                background: #F2F2F7; 
+                                -webkit-appearance: none;
+                                cursor: pointer;
+                                font-family: inherit;
+                            ">
+                                <option value="car">🚗 車</option>
+                                <option value="walk">🚶 徒歩</option>
+
+                            </select>
+                        </div>
 
                         <div class="setting-item" style="grid-column: span 2; margin-top: 10px;">
                             <span class="info-label">読み上げ速度: <span id="speed-val">1.0</span>x</span>
