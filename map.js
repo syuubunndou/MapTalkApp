@@ -1801,12 +1801,12 @@ class App {
             GPS_STATUS.style.color = "white";
         }
     }
-    calcDirectionSystem(CURRENT_LONGITUDE, CURRENT_LATITUDE, LAST_LONGITUDE, LAST_LATITUDE) {
-        const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LONGITUDE, CURRENT_LATITUDE, LAST_LONGITUDE, LAST_LATITUDE);
+    calcDirectionSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE) {
+        const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE);
         const EACH_SIDE_DIRECTION_RECORD = this.calcEachSideDirection(NORMAL_DIRECTION);
         return EACH_SIDE_DIRECTION_RECORD;
     }
-    calcNormalDirection(CURRENT_LONGITUDE, CURRENT_LATITUDE, LAST_LONGITUDE, LAST_LATITUDE) {
+    calcNormalDirection(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE) {
         const TO_RAD = d => d * Math.PI / 180;
         const TO_DEG = r => r * 180 / Math.PI;
         const Φ1 = TO_RAD(LAST_LATITUDE);
@@ -1818,8 +1818,8 @@ class App {
     }
     calcEachSideDirection(NORMAL_DIRECTION) {
         return {
-            rightDir: NORMAL_DIRECTION + 90,
-            leftDir: NORMAL_DIRECTION - 90
+            rightDir: (NORMAL_DIRECTION + 90) % 360,
+            leftDir: (NORMAL_DIRECTION - 90 + 360) % 360
         };
     }
     WGS84_offsetPosition(CURRENT_LATITUDE, CURRENT_LONGITUDE, DIRECTION, DISTANCE) {

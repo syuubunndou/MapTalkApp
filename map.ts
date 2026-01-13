@@ -3147,17 +3147,17 @@ class App{
 
 
     // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-    private calcDirectionSystem(CURRENT_LONGITUDE : number,CURRENT_LATITUDE: number, LAST_LONGITUDE: number, LAST_LATITUDE: number){
+    private calcDirectionSystem(CURRENT_LATITUDE: number,CURRENT_LONGITUDE : number,LAST_LATITUDE: number, LAST_LONGITUDE: number){
             // 方位角を計算
             // 北 = 0°, 東 = 90°, 南 = 180°, 西 = 270°
-            const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LONGITUDE,CURRENT_LATITUDE,LAST_LONGITUDE,LAST_LATITUDE);
+            const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LATITUDE,CURRENT_LONGITUDE,LAST_LATITUDE,LAST_LONGITUDE);
 
             // 現在地点の左右方向を計算
             const EACH_SIDE_DIRECTION_RECORD = this.calcEachSideDirection(NORMAL_DIRECTION);
 
             return EACH_SIDE_DIRECTION_RECORD;
     }
-    private calcNormalDirection(CURRENT_LONGITUDE : number,CURRENT_LATITUDE: number, LAST_LONGITUDE: number, LAST_LATITUDE: number){
+    private calcNormalDirection(CURRENT_LATITUDE: number,CURRENT_LONGITUDE : number,LAST_LATITUDE: number, LAST_LONGITUDE: number){
         // 前回の位置と今回の位置をもとに、進行方向の方角を計算する。
 
 
@@ -3176,8 +3176,9 @@ class App{
     private calcEachSideDirection(NORMAL_DIRECTION : number) : Record<string,number>{
  
         return {
-                rightDir: NORMAL_DIRECTION + 90,
-                leftDir: NORMAL_DIRECTION - 90
+                // 360度を超えたりマイナスになったりしないよう剰余演算
+                rightDir: (NORMAL_DIRECTION + 90) % 360,
+                leftDir: (NORMAL_DIRECTION - 90 + 360) % 360
             };
        
     }
