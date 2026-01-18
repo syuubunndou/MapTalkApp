@@ -1956,14 +1956,14 @@ class App {
                 type: "CURRENT"
             },
             LEFT: {
-                label: "ひだり",
+                label: "西",
                 name: this.leftKoazaOoaza,
                 pref: this.left_prefName,
                 city: this.left_cityName,
                 type: "LEFT"
             },
             RIGHT: {
-                label: "みぎ",
+                label: "東",
                 name: this.rightKoazaOoaza,
                 pref: this.right_prefName,
                 city: this.right_cityName,
@@ -1997,13 +1997,13 @@ class App {
                     title = "ぜんほうい";
                 }
                 else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("LEFT")) {
-                    title = "げんざいとひだりは";
+                    title = "げんざいと西は";
                 }
                 else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("RIGHT")) {
-                    title = "げんざいとみぎは";
+                    title = "げんざいと東は";
                 }
                 else if (sameNameKeys.includes("LEFT") && sameNameKeys.includes("RIGHT")) {
-                    title = "さゆう";
+                    title = "東西";
                 }
                 else {
                     title = LOC_REC[key].label;
