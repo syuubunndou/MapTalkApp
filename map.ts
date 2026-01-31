@@ -3036,11 +3036,44 @@ class App{
             var { longitude, latitude } = position.coords;
             const CURRENT_LONGITUDE = longitude;
             const CURRENT_LATITUDE  = latitude;
+
+            // 2. 移動距離チェック（追加！）
+            if (!this.hasMovedEnough(CURRENT_LATITUDE, CURRENT_LONGITUDE)) {
+                return; // 5m以上動いていなければここで終了
+            }
+
+            /**
+             * FOR DEBUG 　※D(n)- stands for debug lot number, and NWSE stands for direction.
+             *  
+             * D1-N lat : 38.915621 lng : 139.858038  => 北方向に進む地点
+             * D1   lat : 38.914319 lng : 139.858022  = 新橋五丁目　【ここ！国道７号】　こあら二丁目
+             * D1-S lag : 38.912900 lng : 139.857995  => 南方向に進む地点
+             * 
+             * D2-W lat : 38.906922 lng : 139.860125  = 北西西方向に進む地点
+             * D2   lat : 38.906288 lng : 139.862099  = 酒田市東大町　【国道４７号】　酒田市東町
+             * D2-E lat : 38.906188 lng : 139.862442  = 南東東方向に進む地点
+             * 
+             * 
+             * if D1 >> D1-N  = 　左【新橋５丁目】　　　右【こあら二丁目】
+             * if D1 >> D1-S  = 　左【こあら二丁目】　　右【新橋５丁目】
+             * 
+             * if D2 >> D2-W  = 　左【酒田市東大町】　　右【酒田市東町】
+             * if D2 >> D2-E  = 　左【酒田市東町】　　　右【酒田市東大町】
+             * 
+             * ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+             * ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+             */
+
+
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
             // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
 
             // 左右の方向を計算・取得
-            const DIRECTION_RECORD          = this.calcDirectionSystem(CURRENT_LONGITUDE,CURRENT_LATITUDE,this.lastLongitude,this.lastLatitude);
+            const DIRECTION_RECORD          = this.calcDirectionSystem(     CURRENT_LATITUDE,   // 緯度を先に
+                                                                            CURRENT_LONGITUDE,  // 経度を後に
+                                                                            this.lastLatitude,  // 緯度
+                                                                            this.lastLongitude  // 経度
+                                                                        );
             // 現在地からDISTANCE（ｍ）分離れた左右地点の座標を取得
             const DISTANCE_INPUT = document.getElementById("distance-input") as HTMLInputElement;
             const OFFSET_DISTANCE = parseInt(DISTANCE_INPUT.value) || 100;
@@ -3144,6 +3177,27 @@ class App{
         }
     }
 
+    private hasMovedEnough(currentLat: number, currentLng: number): boolean {
+        // 初回（前回の座標がない場合）は移動したとみなして実行
+        if (this.lastLatitude === 0 && this.lastLongitude === 0) return true;
+
+        const from = turf.point([this.lastLongitude, this.lastLatitude]);
+        const to = turf.point([currentLng, currentLat]);
+        
+        // 距離を計算（単位：meters）
+        const distance = turf.distance(from, to, { units: 'meters' });
+
+        // 閾値を設定（ここでは5mとしていますが、適宜調整してください）
+        const MOVEMENT_THRESHOLD = 5; 
+
+        if (distance < MOVEMENT_THRESHOLD) {
+            console.log(`移動距離が不十分なためスキップ: ${distance.toFixed(2)}m`);
+            return false;
+        }
+
+        console.log(`移動検知: ${distance.toFixed(2)}m`);
+        return true;
+    }
 
 
     // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
@@ -3151,7 +3205,7 @@ class App{
             // 方位角を計算
             // 北 = 0°, 東 = 90°, 南 = 180°, 西 = 270°
             const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LATITUDE,CURRENT_LONGITUDE,LAST_LATITUDE,LAST_LONGITUDE);
-
+            console.log(`it is direction [${NORMAL_DIRECTION}]`)
             // 現在地点の左右方向を計算
             const EACH_SIDE_DIRECTION_RECORD = this.calcEachSideDirection(NORMAL_DIRECTION);
 
@@ -3390,14 +3444,14 @@ class App{
                     type: "CURRENT" 
                 },
                 LEFT: { 
-                    label: "西", 
+                    label: "ひだり", 
                     name: this.leftKoazaOoaza,    
                     pref: this.left_prefName,    
                     city: this.left_cityName,    
                     type: "LEFT" 
                 },
                 RIGHT: { 
-                    label: "東", 
+                    label: "みぎ", 
                     name: this.rightKoazaOoaza,   
                     pref: this.right_prefName,   
                     city: this.right_cityName,   
@@ -3450,11 +3504,11 @@ class App{
                 if (sameNameKeys.length === 3) {
                     title = "ぜんほうい";
                 } else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("LEFT")) {
-                    title = "げんざいと西は";
+                    title = "げんざいとひだりは";
                 } else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("RIGHT")) {
-                    title = "げんざいと東は";
+                    title = "げんざいとみぎは";
                 } else if (sameNameKeys.includes("LEFT") && sameNameKeys.includes("RIGHT")) {
-                    title = "東西";
+                    title = "さゆう";
                 } else {
                     title = LOC_REC[key].label; // 単独
                 }

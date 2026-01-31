@@ -1737,7 +1737,10 @@ class App {
                 var { longitude, latitude } = position.coords;
                 const CURRENT_LONGITUDE = longitude;
                 const CURRENT_LATITUDE = latitude;
-                const DIRECTION_RECORD = this.calcDirectionSystem(CURRENT_LONGITUDE, CURRENT_LATITUDE, this.lastLongitude, this.lastLatitude);
+                if (!this.hasMovedEnough(CURRENT_LATITUDE, CURRENT_LONGITUDE)) {
+                    return;
+                }
+                const DIRECTION_RECORD = this.calcDirectionSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, this.lastLatitude, this.lastLongitude);
                 const DISTANCE_INPUT = document.getElementById("distance-input");
                 const OFFSET_DISTANCE = parseInt(DISTANCE_INPUT.value) || 100;
                 const EACH_SIDE_POINT_RECORD = this.calcEachSidePoint(CURRENT_LATITUDE, CURRENT_LONGITUDE, DIRECTION_RECORD, OFFSET_DISTANCE);
@@ -1801,8 +1804,23 @@ class App {
             GPS_STATUS.style.color = "white";
         }
     }
+    hasMovedEnough(currentLat, currentLng) {
+        if (this.lastLatitude === 0 && this.lastLongitude === 0)
+            return true;
+        const from = turf.point([this.lastLongitude, this.lastLatitude]);
+        const to = turf.point([currentLng, currentLat]);
+        const distance = turf.distance(from, to, { units: 'meters' });
+        const MOVEMENT_THRESHOLD = 5;
+        if (distance < MOVEMENT_THRESHOLD) {
+            console.log(`移動距離が不十分なためスキップ: ${distance.toFixed(2)}m`);
+            return false;
+        }
+        console.log(`移動検知: ${distance.toFixed(2)}m`);
+        return true;
+    }
     calcDirectionSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE) {
         const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE);
+        console.log(`it is direction [${NORMAL_DIRECTION}]`);
         const EACH_SIDE_DIRECTION_RECORD = this.calcEachSideDirection(NORMAL_DIRECTION);
         return EACH_SIDE_DIRECTION_RECORD;
     }
@@ -1956,14 +1974,14 @@ class App {
                 type: "CURRENT"
             },
             LEFT: {
-                label: "西",
+                label: "ひだり",
                 name: this.leftKoazaOoaza,
                 pref: this.left_prefName,
                 city: this.left_cityName,
                 type: "LEFT"
             },
             RIGHT: {
-                label: "東",
+                label: "みぎ",
                 name: this.rightKoazaOoaza,
                 pref: this.right_prefName,
                 city: this.right_cityName,
@@ -1997,13 +2015,13 @@ class App {
                     title = "ぜんほうい";
                 }
                 else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("LEFT")) {
-                    title = "げんざいと西は";
+                    title = "げんざいとひだりは";
                 }
                 else if (sameNameKeys.includes("CURRENT") && sameNameKeys.includes("RIGHT")) {
-                    title = "げんざいと東は";
+                    title = "げんざいとみぎは";
                 }
                 else if (sameNameKeys.includes("LEFT") && sameNameKeys.includes("RIGHT")) {
-                    title = "東西";
+                    title = "さゆう";
                 }
                 else {
                     title = LOC_REC[key].label;
