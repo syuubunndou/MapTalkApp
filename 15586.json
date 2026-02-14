@@ -1,0 +1,3 @@
+{"type":"FeatureCollection", "features": [
+{"type":"Feature","geometry":null,"properties":{"KEY_CODE":"155860010","PREF":"15","CITY":"586","S_AREA":"001000","PREF_NAME":"新潟県","CITY_NAME":"粟島浦村","S_NAME":"釜谷","KIGO_E":"","HCODE":8101,"AREA":9765903.389,"PERIMETER":28157.391,"R2KAxx":8104,"R2KAxx_ID":8103,"KIHON1":"0010","DUMMY1":"-","KIHON2":"00","KEYCODE1":"586001000","KEYCODE2":"5860010","AREA_MAX_F":"M","KIGO_D":"","N_KEN":"","N_CITY":"","KIGO_I":"I","KBSUM":6,"JINKO":353,"SETAI":170,"X_CODE":139.240307,"Y_CODE":38.462574,"KCODE1":"0010-00"}}
+]}
