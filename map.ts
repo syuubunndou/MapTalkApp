@@ -3102,6 +3102,8 @@ class App{
             // KoazaOoaza, CityName, PrefNameを保存する。
             this.loadCityDataSystem();
 
+            this.playInNewCitySound();
+
             this.Announce();
             
             // 履歴の更新
@@ -3393,15 +3395,16 @@ class App{
 
 
 
-    isOoazaAndKoazaSame(OOAZA_KOAZA : string, KEY : string) : boolean{
-        return OOAZA_KOAZA === this.previousKoaza[KEY] ? true : false;
+    isOoazaAndKoazaSame(OOAZA_KOAZA : string, WAYPOINT_KEY : string) : boolean{
+        return OOAZA_KOAZA === this.previousKoaza[WAYPOINT_KEY] ? true : false;
     }
-    isCityNameSame(CITY_NAME : string, KEY : string) : boolean{
-        return CITY_NAME === this.previousCityName[KEY] ? true : false;
+    isCityNameSame(CITY_NAME : string, WAYPOINT_KEY : string) : boolean{
+        return CITY_NAME === this.previousCityName[WAYPOINT_KEY] ? true : false;
     }
-    isPrefNameSame(PREF_NAME : string, KEY : string) : boolean{
-        return PREF_NAME === this.previousPrefName[KEY] ? true : false;
+    isPrefNameSame(PREF_NAME : string, WAYPOINT_KEY : string) : boolean{
+        return PREF_NAME === this.previousPrefName[WAYPOINT_KEY] ? true : false;
     }
+    //WAYPOINT_KEY : CURRENT, LEFT, RIGHT
 
     Announce(){
         // 1. どこかに変化があるかチェック（前回と全く同じなら何もしない）
@@ -3412,6 +3415,7 @@ class App{
         if (!hasCurrentChanged && !hasLeftChanged && !hasRightChanged) {
             return; // どこも変わってなければ終了
         }
+
 
         window.speechSynthesis.cancel();
         const CONTENT = this.writeAnnounceContent(hasCurrentChanged,hasLeftChanged,hasRightChanged);
@@ -3429,8 +3433,6 @@ class App{
         
         this.addHistoryLog();
     }
-
-
     private writeAnnounceContent(hasCurrentChanged: boolean, hasLeftChanged: boolean, hasRightChanged: boolean) {
         const REST = "、、、、、、";
 
@@ -3594,13 +3596,22 @@ class App{
 
     }
 
+    private playInNewCitySound(){
+        if(this.isPrefNameSame(this.current_prefName,"CURRENT") == false){
+            new Audio("inNewCity.mp3").play();
+        }else if (this.isCityNameSame(this.current_cityName,"CURRENT")== false){
+            new Audio("inNewCity.mp3").play();
+        }
+    }
+
 
     DisplayInfo() {
-        const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza") as HTMLDivElement;
-        const LONGITUDE_DISPLAY = document.getElementById("lng-val") as HTMLDivElement;
-        const LATITUDE_DISPLAY = document.getElementById("lat-val") as HTMLDivElement;
-        const LEFT_KOAZA_DISPLAY = document.getElementById("left-koaza") as HTMLDivElement;
-        const RIGHT_KOAZA_DISPLAY = document.getElementById("right-koaza") as HTMLDivElement;
+        const CURRENT_KOAZA_DISPLAY     = document.getElementById("current-koaza")          as HTMLDivElement;
+        const LONGITUDE_DISPLAY         = document.getElementById("lng-val")                as HTMLDivElement;
+        const LATITUDE_DISPLAY          = document.getElementById("lat-val")                as HTMLDivElement;
+        const LEFT_KOAZA_DISPLAY        = document.getElementById("left-koaza")             as HTMLDivElement;
+        const RIGHT_KOAZA_DISPLAY       = document.getElementById("right-koaza")            as HTMLDivElement;
+        const CURRENT_PREF_CITY_DISPLAY = document.getElementById("currentPrefCityName")    as HTMLParagraphElement;
 
         // ヘルパー関数：変化がある部分だけを文字列にする
         const formatDisplayString = (pref: string, city: string, koaza: string, key: string) => {
@@ -3631,6 +3642,8 @@ class App{
         RIGHT_KOAZA_DISPLAY.innerHTML = formatDisplayString(
             this.right_prefName, this.right_cityName, this.rightKoazaOoaza, "RIGHT"
         );
+
+        CURRENT_PREF_CITY_DISPLAY.innerHTML = `${this.current_prefName} ${this.current_cityName}`;
 
         // 座標の表示
         LONGITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[0].toString();

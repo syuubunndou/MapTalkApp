@@ -77,6 +77,9 @@ header {
     color: var(--primary);
     word-break: break-all;
     margin-top: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* 左右分割セクション */
@@ -113,6 +116,17 @@ header {
     align-items: center;
     justify-content: center;
     gap: 4px;
+}
+
+.pref-city-name{
+    font-size: 1.0rem;
+    color: var(--secondary-text);
+    margin: 0;
+    display: flex;
+    align-items: left;
+    justify-content: left;
+    gap: 4px;
+
 }
 
 /* --- 数値グリッド --- */

@@ -1751,6 +1751,7 @@ class App {
                     this.loadCityCodeSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_POINT_RECORD);
                 }
                 this.loadCityDataSystem();
+                this.playInNewCitySound();
                 this.Announce();
                 this.updatePreviousePlaceNames();
                 this.DisplayInfo();
@@ -1937,14 +1938,14 @@ class App {
             console.log(`oh undefined////`);
         }
     }
-    isOoazaAndKoazaSame(OOAZA_KOAZA, KEY) {
-        return OOAZA_KOAZA === this.previousKoaza[KEY] ? true : false;
+    isOoazaAndKoazaSame(OOAZA_KOAZA, WAYPOINT_KEY) {
+        return OOAZA_KOAZA === this.previousKoaza[WAYPOINT_KEY] ? true : false;
     }
-    isCityNameSame(CITY_NAME, KEY) {
-        return CITY_NAME === this.previousCityName[KEY] ? true : false;
+    isCityNameSame(CITY_NAME, WAYPOINT_KEY) {
+        return CITY_NAME === this.previousCityName[WAYPOINT_KEY] ? true : false;
     }
-    isPrefNameSame(PREF_NAME, KEY) {
-        return PREF_NAME === this.previousPrefName[KEY] ? true : false;
+    isPrefNameSame(PREF_NAME, WAYPOINT_KEY) {
+        return PREF_NAME === this.previousPrefName[WAYPOINT_KEY] ? true : false;
     }
     Announce() {
         const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
@@ -2076,12 +2077,21 @@ class App {
             this.previousPrefName[side] = data[side].pref;
         });
     }
+    playInNewCitySound() {
+        if (this.isPrefNameSame(this.current_prefName, "CURRENT") == false) {
+            new Audio("inNewCity.mp3").play();
+        }
+        else if (this.isCityNameSame(this.current_cityName, "CURRENT") == false) {
+            new Audio("inNewCity.mp3").play();
+        }
+    }
     DisplayInfo() {
         const CURRENT_KOAZA_DISPLAY = document.getElementById("current-koaza");
         const LONGITUDE_DISPLAY = document.getElementById("lng-val");
         const LATITUDE_DISPLAY = document.getElementById("lat-val");
         const LEFT_KOAZA_DISPLAY = document.getElementById("left-koaza");
         const RIGHT_KOAZA_DISPLAY = document.getElementById("right-koaza");
+        const CURRENT_PREF_CITY_DISPLAY = document.getElementById("currentPrefCityName");
         const formatDisplayString = (pref, city, koaza, key) => {
             const isPrefSame = this.isPrefNameSame(pref, key);
             const isCitySame = this.isCityNameSame(city, key);
@@ -2098,6 +2108,7 @@ class App {
         CURRENT_KOAZA_DISPLAY.innerHTML = formatDisplayString(this.current_prefName, this.current_cityName, this.currentKoazaOoaza, "CURRENT");
         LEFT_KOAZA_DISPLAY.innerHTML = formatDisplayString(this.left_prefName, this.left_cityName, this.leftKoazaOoaza, "LEFT");
         RIGHT_KOAZA_DISPLAY.innerHTML = formatDisplayString(this.right_prefName, this.right_cityName, this.rightKoazaOoaza, "RIGHT");
+        CURRENT_PREF_CITY_DISPLAY.innerHTML = `${this.current_prefName} ${this.current_cityName}`;
         LONGITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[0].toString();
         LATITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[1].toString();
     }
