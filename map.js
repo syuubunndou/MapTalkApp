@@ -1625,12 +1625,15 @@ class App {
                     const EACH_SIDE_COORD_RECORD = this.produceEachSideCoordRecord(CURRENT_LONGITUDE, CURRENT_LATITUDE);
                     this.waypointCoordsCalcSystem(CURRENT_LONGITUDE, CURRENT_LATITUDE, EACH_SIDE_COORD_RECORD);
                     this.loadCityDataSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_COORD_RECORD);
-                    this.Announce();
+                    
                     if (this.lastLongitude == 0 && this.lastLatitude == 0) {
                     }
                     else {
                         this.playInNewCitySound();
                     }
+
+                    this.Announce();
+                    
                     this.addHistoryLog();
                     this.updatePreviousePlaceNames();
                     this.DisplayInfo();
@@ -2241,6 +2244,7 @@ class History {
             <span class="calendar-icon">📅</span>
             <span class="date-text">${dateKey}</span>
         </div>
+
         `;
         LIST.className = "history-summary-item";
         return LIST;
