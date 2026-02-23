@@ -1591,10 +1591,10 @@ const CONFIG = {
 const FIREBASE_FUNCTION = new FirebaseFunctions(CONFIG, false);
 class App {
     constructor(FIREBASE_FUNCTION) {
-        this.APP_START_TIME = Date.now();
         this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
-        this.cnt = 0;
-        this.lastLoadCityCodeTime = Date.now() - 60 * 60 * 1000;
+        this.APP_START_TIME = Date.now();
+        this.debug_fetchCounter = 0;
+        this.lastLaunchTime__loadWaypointGeoJSON_Data = Date.now() - 60 * 60 * 1000;
         this.lastLatitude = 0;
         this.lastLongitude = 0;
         this.previousKoaza = { CURRENT: "", LEFT: "", RIGHT: "" };
@@ -1604,157 +1604,37 @@ class App {
     }
     init() {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.initAfterAndGetCurrentPosition();
+            yield this.naviMainSystem();
             this.setupSettingEffect();
             yield this.loadUserParameterAndInput();
             this.intervalSystem();
             this.attachEvent();
         });
     }
-    attachEvent() {
-        const INTERVAL_INPUT = document.getElementById("interval-input");
-        INTERVAL_INPUT.addEventListener("input", () => {
-            this.intervalSystem();
-        });
-        const MODE_INPUT = document.getElementById("mode-input");
-        MODE_INPUT.addEventListener("input", () => {
-            this.loadUserParameterAndInput();
-        });
-    }
-    intervalSystem() {
-        if (this.intervalID) {
-            this.resetInterval();
-            this.setNewInterval();
-        }
-        else {
-            this.setNewInterval();
-        }
-    }
-    setNewInterval() {
-        const INTERVAL_INPUT = document.getElementById("interval-input");
-        const INTERVAL_SECOND = parseInt(INTERVAL_INPUT.value) * 1000;
-        this.intervalID = setInterval(() => {
-            this.initAfterAndGetCurrentPosition();
-        }, INTERVAL_SECOND);
-    }
-    resetInterval() {
-        clearInterval(this.intervalID);
-        this.intervalID = null;
-    }
-    loadUserParameterAndInput() {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const MODE_INPUT = document.getElementById("mode-input");
-                const MODE = MODE_INPUT.value;
-                const [accuracyData, distanceData, speedData, intervalData] = yield Promise.all([
-                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/accuracyThreshold`),
-                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/rightLeftDistance`),
-                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/speachSpeed`),
-                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/interval`)
-                ]);
-                const THRESHOLD_EL = document.getElementById("threshold-input");
-                const DISTANCE_EL = document.getElementById("distance-input");
-                const SPEED_DISPLAY = document.getElementById("speed-input");
-                const SPEED_VAL = document.getElementById("speed-val");
-                const INTERVAL_INPUT = document.getElementById("interval-input");
-                if (THRESHOLD_EL) {
-                    THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
-                    THRESHOLD_EL.classList.add('setting-updated');
-                }
-                if (DISTANCE_EL) {
-                    DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
-                    DISTANCE_EL.classList.add('setting-updated');
-                }
-                if (SPEED_DISPLAY) {
-                    SPEED_DISPLAY.value = speedData;
-                    SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
-                    SPEED_DISPLAY.classList.add("setting-updated");
-                }
-                if (INTERVAL_INPUT) {
-                    INTERVAL_INPUT.value = intervalData !== undefined ? intervalData : "1";
-                    INTERVAL_INPUT.classList.add('setting-updated');
-                }
-                console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
-            }
-            catch (error) {
-                console.error("データの読み込み中にエラーが発生しました:", error);
-            }
-        });
-    }
-    setupSettingEffect() {
-        const inputs = ['threshold-input', 'distance-input', "interval-input"];
-        inputs.forEach(id => {
-            const el = document.getElementById(id);
-            if (!el)
-                return;
-            el.addEventListener('change', () => {
-                el.classList.remove('setting-updated');
-                void el.offsetWidth;
-                el.classList.add('setting-updated');
-                console.log(`${id} が変更されました: ${el.value}`);
-            });
-        });
-    }
-    getCityCode(lat, lng) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const url = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lng}`;
-            const res = yield fetch(url);
-            const data = yield res.json();
-            this.cnt += 1;
-            console.log(`fetch counter : ${this.cnt}`);
-            if (data && data.results) {
-                return data.results.muniCd;
-            }
-            return "";
-        });
-    }
-    loadGeoData(CITY_CODE) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const RESPONSE = yield fetch(`${CITY_CODE}.json`);
-            const DATA = yield RESPONSE.json();
-            return DATA;
-        });
-    }
-    isOkToLoadCityCode() {
-        if (Date.now() - this.lastLoadCityCodeTime > 1 * 10 * 1000) {
-            return true;
-        }
-        else {
-            return false;
-        }
-    }
-    initAfterAndGetCurrentPosition() {
+    naviMainSystem() {
         return __awaiter(this, void 0, void 0, function* () {
             navigator.geolocation.getCurrentPosition((position) => __awaiter(this, void 0, void 0, function* () {
-                this.updateGPS_AccuracyDisplay(position);
-                if (this.isReliableGPS_Accuracy(position)) {
-                }
-                else {
-                    return;
-                }
-                const LAST_LONGITUDE = this.lastLongitude;
-                const LAST_LATITUDE = this.lastLatitude;
                 var { longitude, latitude } = position.coords;
                 const CURRENT_LONGITUDE = longitude;
                 const CURRENT_LATITUDE = latitude;
                 if (!this.hasMovedEnough(CURRENT_LATITUDE, CURRENT_LONGITUDE)) {
                     return;
                 }
-                const DIRECTION_RECORD = this.calcDirectionSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, this.lastLatitude, this.lastLongitude);
-                const DISTANCE_INPUT = document.getElementById("distance-input");
-                const OFFSET_DISTANCE = parseInt(DISTANCE_INPUT.value) || 100;
-                const EACH_SIDE_POINT_RECORD = this.calcEachSidePoint(CURRENT_LATITUDE, CURRENT_LONGITUDE, DIRECTION_RECORD, OFFSET_DISTANCE);
-                this.CURRENT_POINT = turf.point([CURRENT_LONGITUDE, CURRENT_LATITUDE]);
-                this.LEFT_POINT = turf.point([EACH_SIDE_POINT_RECORD.LEFT_POINT.lng, EACH_SIDE_POINT_RECORD.LEFT_POINT.lat]);
-                this.RIGHT_POINT = turf.point([EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng, EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat]);
-                if (this.isOkToLoadCityCode()) {
-                    this.loadCityCodeSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_POINT_RECORD);
+                else {
+                    this.GPS_AccuracySystem(position);
+                    const EACH_SIDE_COORD_RECORD = this.produceEachSideCoordRecord(CURRENT_LONGITUDE, CURRENT_LATITUDE);
+                    this.waypointCoordsCalcSystem(CURRENT_LONGITUDE, CURRENT_LATITUDE, EACH_SIDE_COORD_RECORD);
+                    this.loadCityDataSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_COORD_RECORD);
+                    this.Announce();
+                    if (this.lastLongitude == 0 && this.lastLatitude == 0) {
+                    }
+                    else {
+                        this.playInNewCitySound();
+                    }
+                    this.addHistoryLog();
+                    this.updatePreviousePlaceNames();
+                    this.DisplayInfo();
                 }
-                this.loadCityDataSystem();
-                this.playInNewCitySound();
-                this.Announce();
-                this.updatePreviousePlaceNames();
-                this.DisplayInfo();
                 this.lastLongitude = CURRENT_LONGITUDE;
                 this.lastLatitude = CURRENT_LATITUDE;
             }), (error) => {
@@ -1765,45 +1645,6 @@ class App {
                 maximumAge: 0
             });
         });
-    }
-    isReliableGPS_Accuracy(position) {
-        const THRESHOLD_INPUT = document.getElementById("threshold-input");
-        const ACCURACY = position.coords.accuracy;
-        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;
-        if (ACCURACY > ACCURACY_THRESHOLD) {
-            console.warn(`GPS精度不足のためスキップ: 誤差 ${Math.round(ACCURACY)}m`);
-            return false;
-        }
-        else {
-            return true;
-        }
-    }
-    updateGPS_AccuracyDisplay(position) {
-        const ACCURACY_DISPLAY = document.getElementById("accuracy-display");
-        const GPS_STATUS = document.getElementById("gps-status");
-        const THRESHOLD_INPUT = document.getElementById("threshold-input");
-        const ACCURACY = Math.round(position.coords.accuracy);
-        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;
-        ACCURACY_DISPLAY.innerText = `GPS誤差 : ${ACCURACY}m`;
-        const ratio = ACCURACY / ACCURACY_THRESHOLD;
-        if (ratio <= 0.3) {
-            GPS_STATUS.innerText = "高精度";
-            GPS_STATUS.style.backgroundColor = "var(--accent)";
-        }
-        else if (ratio <= 0.7) {
-            GPS_STATUS.innerText = "中精度";
-            GPS_STATUS.style.backgroundColor = "#AFCE33";
-        }
-        else if (ratio <= 1.0) {
-            GPS_STATUS.innerText = "低精度";
-            GPS_STATUS.style.backgroundColor = "#FFD60A";
-            GPS_STATUS.style.color = "black";
-        }
-        else {
-            GPS_STATUS.innerText = "精度不足";
-            GPS_STATUS.style.backgroundColor = "#FF3B30";
-            GPS_STATUS.style.color = "white";
-        }
     }
     hasMovedEnough(currentLat, currentLng) {
         if (this.lastLatitude === 0 && this.lastLongitude === 0)
@@ -1816,8 +1657,73 @@ class App {
             console.log(`移動距離が不十分なためスキップ: ${distance.toFixed(2)}m`);
             return false;
         }
-        console.log(`移動検知: ${distance.toFixed(2)}m`);
-        return true;
+        else {
+            console.log(`移動検知: ${distance.toFixed(2)}m`);
+            return true;
+        }
+    }
+    GPS_AccuracySystem(position) {
+        this.updateGPS_AccuracyDisplay(position);
+        if (this.isReliableGPS_Accuracy(position)) {
+        }
+        else {
+            return;
+        }
+    }
+    updateGPS_AccuracyDisplay(position) {
+        const GPS_STATUS = document.getElementById("gps-status");
+        const ACCURACY_RATIO = this.calcAccuracyRatio(position);
+        if (ACCURACY_RATIO <= 0.3) {
+            GPS_STATUS.innerText = "高精度";
+            GPS_STATUS.style.backgroundColor = "var(--accent)";
+        }
+        else if (ACCURACY_RATIO <= 0.7) {
+            GPS_STATUS.innerText = "中精度";
+            GPS_STATUS.style.backgroundColor = "#AFCE33";
+        }
+        else if (ACCURACY_RATIO <= 1.0) {
+            GPS_STATUS.innerText = "低精度";
+            GPS_STATUS.style.backgroundColor = "#FFD60A";
+            GPS_STATUS.style.color = "black";
+        }
+        else {
+            GPS_STATUS.innerText = "精度不足";
+            GPS_STATUS.style.backgroundColor = "#FF3B30";
+            GPS_STATUS.style.color = "white";
+        }
+    }
+    calcAccuracyRatio(position) {
+        const ACCURACY_DISPLAY = document.getElementById("accuracy-display");
+        const THRESHOLD_INPUT = document.getElementById("threshold-input");
+        const ACCURACY = Math.round(position.coords.accuracy);
+        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;
+        ACCURACY_DISPLAY.innerText = `GPS誤差 : ${ACCURACY}m`;
+        const ACCURACY_RATIO = ACCURACY / ACCURACY_THRESHOLD;
+        return ACCURACY_RATIO;
+    }
+    isReliableGPS_Accuracy(position) {
+        const THRESHOLD_INPUT = document.getElementById("threshold-input");
+        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;
+        const ACCURACY = position.coords.accuracy;
+        if (ACCURACY > ACCURACY_THRESHOLD) {
+            console.warn(`GPS精度不足のためスキップ: 誤差 ${Math.round(ACCURACY)}m`);
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+    waypointCoordsCalcSystem(CURRENT_LONGITUDE, CURRENT_LATITUDE, EACH_SIDE_POINT_RECORD) {
+        this.CURRENT_POINT = turf.point([CURRENT_LONGITUDE, CURRENT_LATITUDE]);
+        this.LEFT_POINT = turf.point([EACH_SIDE_POINT_RECORD.LEFT_POINT.lng, EACH_SIDE_POINT_RECORD.LEFT_POINT.lat]);
+        this.RIGHT_POINT = turf.point([EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng, EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat]);
+    }
+    produceEachSideCoordRecord(CURRENT_LONGITUDE, CURRENT_LATITUDE) {
+        const DIRECTION_RECORD = this.calcDirectionSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, this.lastLatitude, this.lastLongitude);
+        const DISTANCE_INPUT = document.getElementById("distance-input");
+        const OFFSET_DISTANCE = parseInt(DISTANCE_INPUT.value) || 100;
+        const EACH_SIDE_POINT_RECORD = this.calcEachSidePoint(CURRENT_LATITUDE, CURRENT_LONGITUDE, DIRECTION_RECORD, OFFSET_DISTANCE);
+        return EACH_SIDE_POINT_RECORD;
     }
     calcDirectionSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE) {
         const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LATITUDE, CURRENT_LONGITUDE, LAST_LATITUDE, LAST_LONGITUDE);
@@ -1862,7 +1768,13 @@ class App {
             RIGHT_POINT: this.WGS84_offsetPosition(CURRENT_LATITUDE, CURRENT_LONGITUDE, DIRECTION_RECORD.rightDir, DISTANCE)
         };
     }
-    loadCityCodeSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_POINT_RECORD) {
+    loadCityDataSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_COORD_RECORD) {
+        if (this.isOkToLoadCityCode()) {
+            this.loadWaypointGeoJSON_Data(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_COORD_RECORD);
+        }
+        this.loadWaypointPlaceName();
+    }
+    loadWaypointGeoJSON_Data(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_POINT_RECORD) {
         return __awaiter(this, void 0, void 0, function* () {
             const CURRENT_CITY_CODE = yield this.getCityCode(CURRENT_LATITUDE, CURRENT_LONGITUDE);
             const LEFT_POINT_CITY_CODE = yield this.getCityCode(EACH_SIDE_POINT_RECORD.LEFT_POINT.lat, EACH_SIDE_POINT_RECORD.LEFT_POINT.lng);
@@ -1888,10 +1800,58 @@ class App {
             else {
                 this.RIGHT_GEO_DATA = yield this.loadGeoData(RIGHT_POINT_CITY_CODE);
             }
-            this.lastLoadCityCodeTime = Date.now();
+            this.lastLaunchTime__loadWaypointGeoJSON_Data = Date.now();
         });
     }
-    getCityOoazaKoazaName(USER_LNG, USER_LAT) {
+    getCityCode(lat, lng) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const url = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lng}`;
+            const res = yield fetch(url);
+            const data = yield res.json();
+            this.debug_fetchCounter += 1;
+            console.log(`fetch counter : ${this.debug_fetchCounter}`);
+            if (data && data.results) {
+                return data.results.muniCd;
+            }
+            return "";
+        });
+    }
+    loadGeoData(CITY_CODE) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const RESPONSE = yield fetch(`${CITY_CODE}.json`);
+            const DATA = yield RESPONSE.json();
+            return DATA;
+        });
+    }
+    isOkToLoadCityCode() {
+        if (Date.now() - this.lastLaunchTime__loadWaypointGeoJSON_Data > 1 * 10 * 1000) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    loadWaypointPlaceName() {
+        const CURRENT_CITY_DATA = this.calcClosestOoazaKoazaName(this.CURRENT_POINT.geometry.coordinates[0], this.CURRENT_POINT.geometry.coordinates[1]);
+        if (CURRENT_CITY_DATA !== undefined) {
+            console.log(CURRENT_CITY_DATA);
+            this.currentKoazaOoaza = CURRENT_CITY_DATA.OOAZA_AND_KOAZA;
+            this.current_cityName = CURRENT_CITY_DATA.CITY_NAME;
+            this.current_prefName = CURRENT_CITY_DATA.PREF_NAME;
+            const LEFT_CITY_DATA = this.calcClosestOoazaKoazaName(this.LEFT_POINT.geometry.coordinates[0], this.LEFT_POINT.geometry.coordinates[1]);
+            this.leftKoazaOoaza = LEFT_CITY_DATA.OOAZA_AND_KOAZA;
+            this.left_cityName = LEFT_CITY_DATA.CITY_NAME;
+            this.left_prefName = LEFT_CITY_DATA.PREF_NAME;
+            const RIGHT_CITY_DATA = this.calcClosestOoazaKoazaName(this.RIGHT_POINT.geometry.coordinates[0], this.RIGHT_POINT.geometry.coordinates[1]);
+            this.rightKoazaOoaza = RIGHT_CITY_DATA.OOAZA_AND_KOAZA;
+            this.right_cityName = RIGHT_CITY_DATA.CITY_NAME;
+            this.right_prefName = RIGHT_CITY_DATA.PREF_NAME;
+        }
+        else {
+            console.log(`oh undefined////`);
+        }
+    }
+    calcClosestOoazaKoazaName(USER_LNG, USER_LAT) {
         if (!this.CURRENT_GEO_DATA)
             return;
         let minDistance = Infinity;
@@ -1918,35 +1878,6 @@ class App {
             PREF_NAME: prefName
         };
     }
-    loadCityDataSystem() {
-        const CURRENT_CITY_DATA = this.getCityOoazaKoazaName(this.CURRENT_POINT.geometry.coordinates[0], this.CURRENT_POINT.geometry.coordinates[1]);
-        if (CURRENT_CITY_DATA !== undefined) {
-            console.log(CURRENT_CITY_DATA);
-            this.currentKoazaOoaza = CURRENT_CITY_DATA.OOAZA_AND_KOAZA;
-            this.current_cityName = CURRENT_CITY_DATA.CITY_NAME;
-            this.current_prefName = CURRENT_CITY_DATA.PREF_NAME;
-            const LEFT_CITY_DATA = this.getCityOoazaKoazaName(this.LEFT_POINT.geometry.coordinates[0], this.LEFT_POINT.geometry.coordinates[1]);
-            this.leftKoazaOoaza = LEFT_CITY_DATA.OOAZA_AND_KOAZA;
-            this.left_cityName = LEFT_CITY_DATA.CITY_NAME;
-            this.left_prefName = LEFT_CITY_DATA.PREF_NAME;
-            const RIGHT_CITY_DATA = this.getCityOoazaKoazaName(this.RIGHT_POINT.geometry.coordinates[0], this.RIGHT_POINT.geometry.coordinates[1]);
-            this.rightKoazaOoaza = RIGHT_CITY_DATA.OOAZA_AND_KOAZA;
-            this.right_cityName = RIGHT_CITY_DATA.CITY_NAME;
-            this.right_prefName = RIGHT_CITY_DATA.PREF_NAME;
-        }
-        else {
-            console.log(`oh undefined////`);
-        }
-    }
-    isOoazaAndKoazaSame(OOAZA_KOAZA, WAYPOINT_KEY) {
-        return OOAZA_KOAZA === this.previousKoaza[WAYPOINT_KEY] ? true : false;
-    }
-    isCityNameSame(CITY_NAME, WAYPOINT_KEY) {
-        return CITY_NAME === this.previousCityName[WAYPOINT_KEY] ? true : false;
-    }
-    isPrefNameSame(PREF_NAME, WAYPOINT_KEY) {
-        return PREF_NAME === this.previousPrefName[WAYPOINT_KEY] ? true : false;
-    }
     Announce() {
         const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
         const hasLeftChanged = !this.isOoazaAndKoazaSame(this.leftKoazaOoaza, "LEFT");
@@ -1962,7 +1893,15 @@ class App {
         UTTR.rate = parseFloat(SPEED_SLIDER.textContent);
         UTTR.pitch = 1.0;
         window.speechSynthesis.speak(UTTR);
-        this.addHistoryLog();
+    }
+    isOoazaAndKoazaSame(OOAZA_KOAZA, WAYPOINT_KEY) {
+        return OOAZA_KOAZA === this.previousKoaza[WAYPOINT_KEY] ? true : false;
+    }
+    isCityNameSame(CITY_NAME, WAYPOINT_KEY) {
+        return CITY_NAME === this.previousCityName[WAYPOINT_KEY] ? true : false;
+    }
+    isPrefNameSame(PREF_NAME, WAYPOINT_KEY) {
+        return PREF_NAME === this.previousPrefName[WAYPOINT_KEY] ? true : false;
     }
     writeAnnounceContent(hasCurrentChanged, hasLeftChanged, hasRightChanged) {
         const REST = "、、、、、、";
@@ -2079,7 +2018,16 @@ class App {
     }
     playInNewCitySound() {
         if (this.isPrefNameSame(this.current_prefName, "CURRENT") == false) {
-            new Audio("inNewCity.mp3").play();
+            switch (this.current_prefName) {
+                case "山形県":
+                    new Audio("YamagataSong_Mogamigawa.mp3").play();
+                    break;
+                case "秋田県":
+                    new Audio("AkitaSongNo1No2.mp3").play();
+                    break;
+                default:
+                    new Audio("inNewPref.mp3").play();
+            }
         }
         else if (this.isCityNameSame(this.current_cityName, "CURRENT") == false) {
             new Audio("inNewCity.mp3").play();
@@ -2123,6 +2071,90 @@ class App {
     sendHistoryLogToFirebase() {
         const LOG = document.getElementById('history-log');
         this.FIREBASE_FUNCTION.uploadData(`yamato/history/${this.APP_START_TIME}`, LOG.innerHTML);
+    }
+    attachEvent() {
+        const INTERVAL_INPUT = document.getElementById("interval-input");
+        INTERVAL_INPUT.addEventListener("input", () => {
+            this.intervalSystem();
+        });
+        const MODE_INPUT = document.getElementById("mode-input");
+        MODE_INPUT.addEventListener("input", () => {
+            this.loadUserParameterAndInput();
+        });
+    }
+    intervalSystem() {
+        if (this.intervalID) {
+            this.resetInterval();
+            this.setNewInterval();
+        }
+        else {
+            this.setNewInterval();
+        }
+    }
+    setNewInterval() {
+        const INTERVAL_INPUT = document.getElementById("interval-input");
+        const INTERVAL_SECOND = parseInt(INTERVAL_INPUT.value) * 1000;
+        this.intervalID = setInterval(() => {
+            this.naviMainSystem();
+        }, INTERVAL_SECOND);
+    }
+    resetInterval() {
+        clearInterval(this.intervalID);
+        this.intervalID = null;
+    }
+    loadUserParameterAndInput() {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const MODE_INPUT = document.getElementById("mode-input");
+                const MODE = MODE_INPUT.value;
+                const [accuracyData, distanceData, speedData, intervalData] = yield Promise.all([
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/accuracyThreshold`),
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/rightLeftDistance`),
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/speachSpeed`),
+                    this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/interval`)
+                ]);
+                const THRESHOLD_EL = document.getElementById("threshold-input");
+                const DISTANCE_EL = document.getElementById("distance-input");
+                const SPEED_DISPLAY = document.getElementById("speed-input");
+                const SPEED_VAL = document.getElementById("speed-val");
+                const INTERVAL_INPUT = document.getElementById("interval-input");
+                if (THRESHOLD_EL) {
+                    THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
+                    THRESHOLD_EL.classList.add('setting-updated');
+                }
+                if (DISTANCE_EL) {
+                    DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
+                    DISTANCE_EL.classList.add('setting-updated');
+                }
+                if (SPEED_DISPLAY) {
+                    SPEED_DISPLAY.value = speedData;
+                    SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
+                    SPEED_DISPLAY.classList.add("setting-updated");
+                }
+                if (INTERVAL_INPUT) {
+                    INTERVAL_INPUT.value = intervalData !== undefined ? intervalData : "1";
+                    INTERVAL_INPUT.classList.add('setting-updated');
+                }
+                console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
+            }
+            catch (error) {
+                console.error("データの読み込み中にエラーが発生しました:", error);
+            }
+        });
+    }
+    setupSettingEffect() {
+        const inputs = ['threshold-input', 'distance-input', "interval-input"];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el)
+                return;
+            el.addEventListener('change', () => {
+                el.classList.remove('setting-updated');
+                void el.offsetWidth;
+                el.classList.add('setting-updated');
+                console.log(`${id} が変更されました: ${el.value}`);
+            });
+        });
     }
 }
 class History {

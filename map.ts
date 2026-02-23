@@ -2828,7 +2828,7 @@ class App{
 
     previousPrefName!       : Record<string,string>;
 
-    lastLoadCityCodeTime!   : number;
+    lastLaunchTime__loadWaypointGeoJSON_Data!   : number;
     APP_START_TIME          : number;
 
     lastLongitude!          : number;
@@ -2836,283 +2836,88 @@ class App{
 
     FIREBASE_FUNCTION       : FirebaseFunctions;
 
-    cnt                     : number;
+    debug_fetchCounter                     : number;
 
     intervalID!             : any;
 
     constructor(FIREBASE_FUNCTION : FirebaseFunctions){
-        this.APP_START_TIME = Date.now();
+        this.FIREBASE_FUNCTION                  = FIREBASE_FUNCTION;
+        this.APP_START_TIME                     = Date.now();              //履歴情報に使用します。　=>sendHistoryLogToFirebasesendHistoryLogToFirebase()
 
-        this.FIREBASE_FUNCTION = FIREBASE_FUNCTION;
-        this.cnt = 0;
-        this.lastLoadCityCodeTime = Date.now() - 60*60*1000;
 
-        this.lastLatitude = 0;
-        this.lastLongitude = 0;
+        this.debug_fetchCounter                 = 0;                       //debug用カウンター。　=>getCityCode()
+        this.lastLaunchTime__loadWaypointGeoJSON_Data = Date.now() - 60*60*1000; //初期値は１分前に設定。
+
+        this.lastLatitude                       = 0;
+        this.lastLongitude                      = 0;
 
         // Recordの初期化（各キーを空文字で埋める）
-        this.previousKoaza = { CURRENT: "", LEFT: "", RIGHT: "" };
-        this.previousCityName = { CURRENT: "", LEFT: "", RIGHT: "" };
-        this.previousPrefName = { CURRENT: "", LEFT: "", RIGHT: "" };
+        this.previousKoaza                      = { CURRENT: "", LEFT: "", RIGHT: "" };
+        this.previousCityName                   = { CURRENT: "", LEFT: "", RIGHT: "" };
+        this.previousPrefName                   = { CURRENT: "", LEFT: "", RIGHT: "" };
 
         this.init();
     }
 
     async init(){
 
-        await this.initAfterAndGetCurrentPosition();
+        await this.naviMainSystem();
 
+        //=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
         this.setupSettingEffect();
 
         await this.loadUserParameterAndInput();
 
         this.intervalSystem();
 
-        this.attachEvent();
-
-       
-    }
-
-    attachEvent(){
-        const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
-        INTERVAL_INPUT.addEventListener("input",()=>{
-            this.intervalSystem();
-        })
-
-        const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
-        MODE_INPUT.addEventListener("input",()=>{
-            this.loadUserParameterAndInput();
-        })
-    }
-
-    intervalSystem(){
-        if(this.intervalID){
-            this.resetInterval();
-            this.setNewInterval();
-        }else{
-            this.setNewInterval();
-        }
-    }
-    private setNewInterval(){
-        const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
-        const INTERVAL_SECOND   = parseInt(INTERVAL_INPUT.value)*1000; 
-        this.intervalID = setInterval(() => {
-                                                    this.initAfterAndGetCurrentPosition();
-                                            }, INTERVAL_SECOND);
-    }
-    private resetInterval(){
-        clearInterval(this.intervalID);
-        this.intervalID = null;
-    }
-
-    private async loadUserParameterAndInput() {
-        try {
-            // 1. データのダウンロードを確実に待機
-            const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
-            const MODE                      = MODE_INPUT.value;
-            const [accuracyData, distanceData,speedData,intervalData] = await Promise.all([
-                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/accuracyThreshold`  ),
-                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/rightLeftDistance`  ),
-                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/speachSpeed`        ),
-                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/interval`           )
-            ]);
-
-            // 2. 要素を HTMLInputElement として取得
-            const THRESHOLD_EL      = document.getElementById("threshold-input")    as HTMLInputElement;
-            const DISTANCE_EL       = document.getElementById("distance-input")     as HTMLInputElement;
-            const SPEED_DISPLAY     = document.getElementById("speed-input")        as HTMLInputElement;
-            const SPEED_VAL         = document.getElementById("speed-val")          as HTMLElement;
-            const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
-
-            // 3. .value を使って値をセット（データがない場合はデフォルト値を表示）
-            if (THRESHOLD_EL) {
-                THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
-                // 視覚的エフェクトをトリガー
-                THRESHOLD_EL.classList.add('setting-updated');
-            }
-
-            if (DISTANCE_EL) {
-                DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
-                // 視覚的エフェクトをトリガー
-                DISTANCE_EL.classList.add('setting-updated');
-            }
-
-            if(SPEED_DISPLAY){
-                SPEED_DISPLAY.value   = speedData;
-                SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
-
-                SPEED_DISPLAY.classList.add("setting-updated");
-                
-            }
-
-            if (INTERVAL_INPUT) {
-                INTERVAL_INPUT.value = intervalData !== undefined ? intervalData : "1";
-                // 視覚的エフェクトをトリガー
-                INTERVAL_INPUT.classList.add('setting-updated');
-            }
-
-
-            console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
-
-        } catch (error) {
-            console.error("データの読み込み中にエラーが発生しました:", error);
-        }
-    }
-
-    private setupSettingEffect() {
-        const inputs = ['threshold-input', 'distance-input',"interval-input"];
-        
-        inputs.forEach(id => {
-            const el = document.getElementById(id) as HTMLInputElement;
-            if (!el) return;
-
-            el.addEventListener('change', () => {
-                // クラスを一度消して再付与することで、連続変更でもアニメーションを走らせる
-                el.classList.remove('setting-updated');
-                void el.offsetWidth; // リフローを強制（アニメーションのリセットに必要）
-                el.classList.add('setting-updated');
-                
-                console.log(`${id} が変更されました: ${el.value}`);
-            });
-        });
-    }
-
-
-    async getCityCode(lat : number , lng : number):Promise<string>{
-        const url = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lng}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        
-        this.cnt += 1;
-        console.log(`fetch counter : ${this.cnt}`);
-        // チェック：結果が存在するか確認
-        if (data && data.results) {
-            // results はオブジェクト（あるいは配列のような構造）なので、
-            // 一般的には data.results.muniCode でアクセスできますが、
-            // 念のため data.results をコンソールで確認してください。
-            // console.log("取得データ:", data.results);
-
-           
-        
-            return data.results.muniCd; // 06203 などが返ります
-        }
-        
-        return "";
-    }
-    async loadGeoData(CITY_CODE : string){
-        const RESPONSE = await fetch(`${CITY_CODE}.json`)
-        const DATA = await RESPONSE.json();
-        // console.log(this.CURRENT_GEO_DATA);
-        return DATA;
-    }
-    isOkToLoadCityCode(){//０．５秒ごとにロードしていたら、chromeがむり！！！ってエラー吐いたので1分毎にする。
-        if(Date.now() - this.lastLoadCityCodeTime  > 1*10*1000){
-            return true;
-        }else{
-            return false;
-        }
-
+        this.attachEvent();  
     }
 
 
 
-    async initAfterAndGetCurrentPosition(){
-        navigator.geolocation.getCurrentPosition(async (position) => {
-            this.updateGPS_AccuracyDisplay(position);
-            
-            if(this.isReliableGPS_Accuracy(position)){
-                // skip
-            }else{
-                return //処理を中断。信用ならないGPSは除外
-            }
-           
-            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-            // 前回のコード実行時の座標を保存　　　　　　　　　　　　　
-            const LAST_LONGITUDE = this.lastLongitude;          
-            const LAST_LATITUDE  = this.lastLatitude;
-
-            // 直前の座標を保存
+    async naviMainSystem(){
+        navigator.geolocation.getCurrentPosition(async (position) => { // fetchCurrentPosition.  非同期関数のため、関数内にすべての処理を入れる必要があります。
+            // 現在取得した座標の変数名を改名。
             var { longitude, latitude } = position.coords;
-            const CURRENT_LONGITUDE = longitude;
-            const CURRENT_LATITUDE  = latitude;
+            const CURRENT_LONGITUDE     = longitude;
+            const CURRENT_LATITUDE      = latitude;
 
-            // 2. 移動距離チェック（追加！）
+
+            // 移動距離チェック
             if (!this.hasMovedEnough(CURRENT_LATITUDE, CURRENT_LONGITUDE)) {
                 return; // 5m以上動いていなければここで終了
+
+            }else{
+                this.GPS_AccuracySystem(position); 
+                // GPSの精度を評価し、表示を更新します。精度が悪い場合は処理を中断します。
+                
+                const EACH_SIDE_COORD_RECORD = this.produceEachSideCoordRecord(CURRENT_LONGITUDE,CURRENT_LATITUDE);
+                //左右方面地点の座標レコードを生成
+
+                this.waypointCoordsCalcSystem(CURRENT_LONGITUDE,CURRENT_LATITUDE,EACH_SIDE_COORD_RECORD);
+                //現在地点、右方面地点、左方面地点の座標をglobal変数　
+                //this.CURRENT_POINT, .RIGHT_POINT, .LEFT_POINTに保存する。
+
+                this.loadCityDataSystem(CURRENT_LATITUDE,CURRENT_LONGITUDE,EACH_SIDE_COORD_RECORD);
+
+                this.Announce();
+                
+                if(this.lastLongitude == 0 && this.lastLatitude == 0){
+                    //初回起動時は実行しません。
+                }else{
+                    this.playInNewCitySound();
+                }
+
+                //====================== Display Update System===============================
+                //===========================================================================
+                // 履歴の更新
+                this.addHistoryLog();
+
+                this.updatePreviousePlaceNames();     
+
+                this.DisplayInfo();
             }
-
-            /**
-             * FOR DEBUG 　※D(n)- stands for debug lot number, and NWSE stands for direction.
-             *  
-             * D1-N lat : 38.915621 lng : 139.858038  => 北方向に進む地点
-             * D1   lat : 38.914319 lng : 139.858022  = 新橋五丁目　【ここ！国道７号】　こあら二丁目
-             * D1-S lag : 38.912900 lng : 139.857995  => 南方向に進む地点
-             * 
-             * D2-W lat : 38.906922 lng : 139.860125  = 北西西方向に進む地点
-             * D2   lat : 38.906288 lng : 139.862099  = 酒田市東大町　【国道４７号】　酒田市東町
-             * D2-E lat : 38.906188 lng : 139.862442  = 南東東方向に進む地点
-             * 
-             * 
-             * if D1 >> D1-N  = 　左【新橋５丁目】　　　右【こあら二丁目】
-             * if D1 >> D1-S  = 　左【こあら二丁目】　　右【新橋５丁目】
-             * 
-             * if D2 >> D2-W  = 　左【酒田市東大町】　　右【酒田市東町】
-             * if D2 >> D2-E  = 　左【酒田市東町】　　　右【酒田市東大町】
-             * 
-             * ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-             * ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-             */
-
-
-            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-
-            // 左右の方向を計算・取得
-            const DIRECTION_RECORD          = this.calcDirectionSystem(     CURRENT_LATITUDE,   // 緯度を先に
-                                                                            CURRENT_LONGITUDE,  // 経度を後に
-                                                                            this.lastLatitude,  // 緯度
-                                                                            this.lastLongitude  // 経度
-                                                                        );
-            // 現在地からDISTANCE（ｍ）分離れた左右地点の座標を取得
-            const DISTANCE_INPUT = document.getElementById("distance-input") as HTMLInputElement;
-            const OFFSET_DISTANCE = parseInt(DISTANCE_INPUT.value) || 100;
-            const EACH_SIDE_POINT_RECORD    = this.calcEachSidePoint(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD,OFFSET_DISTANCE);
-
-
-            // 経度0.000033、緯度0.000027は３ｍ分になる。
-            this.CURRENT_POINT = turf.point([CURRENT_LONGITUDE, CURRENT_LATITUDE]);
-            this.LEFT_POINT    = turf.point([EACH_SIDE_POINT_RECORD.LEFT_POINT.lng,EACH_SIDE_POINT_RECORD.LEFT_POINT.lat]);
-            this.RIGHT_POINT   = turf.point([EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng,EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat]);
-
-
-
-            // 市町村を読み込み、それに対応するファイルを読み込む。
-            if(this.isOkToLoadCityCode()){
-                this.loadCityCodeSystem(CURRENT_LATITUDE,CURRENT_LONGITUDE,EACH_SIDE_POINT_RECORD)
-            }
-
-            // console.log(this.CURRENT_GEO_DATA);
-            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-            //以下　await 後のプロセス
-            // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝ 
-
-
-            // this.current_ this.left_ this.right_の
-            // KoazaOoaza, CityName, PrefNameを保存する。
-            this.loadCityDataSystem();
-
-            this.playInNewCitySound();
-
-            this.Announce();
-            
-            // 履歴の更新
-            this.updatePreviousePlaceNames();
-
-       
-            this.DisplayInfo();
-
-
+        
 
             // 前回の座標を更新
             this.lastLongitude = CURRENT_LONGITUDE;
@@ -3127,46 +2932,57 @@ class App{
         });
     }
 
-    private isReliableGPS_Accuracy(position : any){
-        const THRESHOLD_INPUT = document.getElementById("threshold-input") as HTMLInputElement;
+    //============== Essential judge function  ==================
+    //===========================================================
+    private hasMovedEnough(currentLat: number, currentLng: number): boolean {
+        // 初回（前回の座標がない場合）は移動したとみなして実行
+        if (this.lastLatitude === 0 && this.lastLongitude === 0) return true;
 
-        const ACCURACY = position.coords.accuracy; // 単位：メートル
+        const from                  = turf.point([this.lastLongitude, this.lastLatitude]);
+        const to                    = turf.point([currentLng, currentLat]);
         
-        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;   
-       
+        // 距離を計算（単位：meters）
+        const distance              = turf.distance(from, to, { units: 'meters' });
 
-        if (ACCURACY > ACCURACY_THRESHOLD) {
-            console.warn(`GPS精度不足のためスキップ: 誤差 ${Math.round(ACCURACY)}m`);
+        // 閾値を設定（ここでは5mとしていますが、適宜調整してください）
+        const MOVEMENT_THRESHOLD    = 5; 
+
+        if (distance < MOVEMENT_THRESHOLD) {
+            console.log(`移動距離が不十分なためスキップ: ${distance.toFixed(2)}m`);
             return false;
         }else{
-            return true
+            console.log(`移動検知: ${distance.toFixed(2)}m`);
+            return true;
+        }
+
+    }
+
+    //==============GPS System functions ========================
+    //===========================================================
+    GPS_AccuracySystem(position: GeolocationPosition) : void{
+        this.updateGPS_AccuracyDisplay(position);
+            
+        if(this.isReliableGPS_Accuracy(position)){
+            // skip
+        }else{
+            return //処理を中断。信用ならないGPSは除外
         }
     }
-    private updateGPS_AccuracyDisplay(position : any){
-        const ACCURACY_DISPLAY  = document.getElementById("accuracy-display") as HTMLDivElement;
-        const GPS_STATUS        = document.getElementById("gps-status") as HTMLDivElement;
-        const THRESHOLD_INPUT = document.getElementById("threshold-input") as HTMLInputElement;
-       
-        const ACCURACY          = Math.round(position.coords.accuracy);
-
-        const ACCURACY_THRESHOLD = parseInt(THRESHOLD_INPUT.value) || 100;
-
-
-        ACCURACY_DISPLAY.innerText = `GPS誤差 : ${ACCURACY}m`;
+    private updateGPS_AccuracyDisplay(position : any) : void{
+        const GPS_STATUS            = document.getElementById("gps-status")       as HTMLDivElement;
+        
+        const ACCURACY_RATIO = this.calcAccuracyRatio(position);
 
         // --- 精度によるステータス表示の切り替え ---
-
-        const ratio = ACCURACY / ACCURACY_THRESHOLD;
-
-        if (ratio <= 0.3) {
+        if (ACCURACY_RATIO <= 0.3) {
             // かなり正確（青〜緑）
             GPS_STATUS.innerText = "高精度";
             GPS_STATUS.style.backgroundColor = "var(--accent)"; // 緑
-        } else if (ratio <= 0.7) {
+        } else if (ACCURACY_RATIO <= 0.7) {
             // 普通（緑〜黄色）
             GPS_STATUS.innerText = "中精度";
             GPS_STATUS.style.backgroundColor = "#AFCE33"; // 黄緑
-        } else if (ratio <= 1.0) {
+        } else if (ACCURACY_RATIO <= 1.0) {
             // 境界線（黄色）
             GPS_STATUS.innerText = "低精度";
             GPS_STATUS.style.backgroundColor = "#FFD60A"; // 黄
@@ -3178,35 +2994,64 @@ class App{
             GPS_STATUS.style.color = "white";
         }
     }
+    private calcAccuracyRatio(position:any)           : number{
+        const ACCURACY_DISPLAY      = document.getElementById("accuracy-display") as HTMLDivElement;
+        const THRESHOLD_INPUT       = document.getElementById("threshold-input")  as HTMLInputElement;
 
-    private hasMovedEnough(currentLat: number, currentLng: number): boolean {
-        // 初回（前回の座標がない場合）は移動したとみなして実行
-        if (this.lastLatitude === 0 && this.lastLongitude === 0) return true;
+        const ACCURACY              = Math.round(position.coords.accuracy);
+        const ACCURACY_THRESHOLD    = parseInt(THRESHOLD_INPUT.value) || 100;
+        ACCURACY_DISPLAY.innerText  = `GPS誤差 : ${ACCURACY}m`;
+        const ACCURACY_RATIO = ACCURACY / ACCURACY_THRESHOLD;
 
-        const from = turf.point([this.lastLongitude, this.lastLatitude]);
-        const to = turf.point([currentLng, currentLat]);
-        
-        // 距離を計算（単位：meters）
-        const distance = turf.distance(from, to, { units: 'meters' });
-
-        // 閾値を設定（ここでは5mとしていますが、適宜調整してください）
-        const MOVEMENT_THRESHOLD = 5; 
-
-        if (distance < MOVEMENT_THRESHOLD) {
-            console.log(`移動距離が不十分なためスキップ: ${distance.toFixed(2)}m`);
-            return false;
-        }
-
-        console.log(`移動検知: ${distance.toFixed(2)}m`);
-        return true;
+        return ACCURACY_RATIO;
     }
 
+    private isReliableGPS_Accuracy(position : any)    : boolean{
+        const THRESHOLD_INPUT       = document.getElementById("threshold-input") as HTMLInputElement;//閾値
+        const ACCURACY_THRESHOLD    = parseInt(THRESHOLD_INPUT.value) || 100;  
 
-    // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+        const ACCURACY              = position.coords.accuracy; // 単位：メートル     
+
+        if (ACCURACY > ACCURACY_THRESHOLD) {
+            console.warn(`GPS精度不足のためスキップ: 誤差 ${Math.round(ACCURACY)}m`);
+            return false;
+        }else{
+            return true
+        }
+    }
+    //=================================================================
+
+
+    //============== calculate waypoint coord system =====================
+    //=====================================================================
+    waypointCoordsCalcSystem(CURRENT_LONGITUDE : number,CURRENT_LATITUDE : number, EACH_SIDE_POINT_RECORD : Record<string,Record<string,number>>) : void{
+        //========================EachWayPoint Calculation System==============================
+        //========================================================================================
+
+
+        // 経度0.000033、緯度0.000027は３ｍ分になる。
+        this.CURRENT_POINT              = turf.point([CURRENT_LONGITUDE, CURRENT_LATITUDE]);
+        this.LEFT_POINT                 = turf.point([EACH_SIDE_POINT_RECORD.LEFT_POINT.lng,EACH_SIDE_POINT_RECORD.LEFT_POINT.lat]);
+        this.RIGHT_POINT                = turf.point([EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng,EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat]);
+    }
+    produceEachSideCoordRecord(CURRENT_LONGITUDE : number,CURRENT_LATITUDE : number) : Record<string,Record<string,number>>{
+                // 左右の方向を計算・取得
+        const DIRECTION_RECORD          = this.calcDirectionSystem(     CURRENT_LATITUDE,   // 緯度を先に
+                                                                        CURRENT_LONGITUDE,  // 経度を後に
+                                                                        this.lastLatitude,  // 緯度
+                                                                        this.lastLongitude  // 経度
+                                                                    );
+        // 現在地からDISTANCE（ｍ）分離れた左右地点の座標を取得
+        const DISTANCE_INPUT            = document.getElementById("distance-input") as HTMLInputElement;
+        const OFFSET_DISTANCE           = parseInt(DISTANCE_INPUT.value) || 100;
+        const EACH_SIDE_POINT_RECORD    = this.calcEachSidePoint(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD,OFFSET_DISTANCE);
+        return EACH_SIDE_POINT_RECORD;                                                          
+    }
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     private calcDirectionSystem(CURRENT_LATITUDE: number,CURRENT_LONGITUDE : number,LAST_LATITUDE: number, LAST_LONGITUDE: number){
             // 方位角を計算
             // 北 = 0°, 東 = 90°, 南 = 180°, 西 = 270°
-            const NORMAL_DIRECTION = this.calcNormalDirection(CURRENT_LATITUDE,CURRENT_LONGITUDE,LAST_LATITUDE,LAST_LONGITUDE);
+            const NORMAL_DIRECTION           = this.calcNormalDirection(CURRENT_LATITUDE,CURRENT_LONGITUDE,LAST_LATITUDE,LAST_LONGITUDE);
             console.log(`it is direction [${NORMAL_DIRECTION}]`)
             // 現在地点の左右方向を計算
             const EACH_SIDE_DIRECTION_RECORD = this.calcEachSideDirection(NORMAL_DIRECTION);
@@ -3216,52 +3061,47 @@ class App{
     private calcNormalDirection(CURRENT_LATITUDE: number,CURRENT_LONGITUDE : number,LAST_LATITUDE: number, LAST_LONGITUDE: number){
         // 前回の位置と今回の位置をもとに、進行方向の方角を計算する。
 
-
         const TO_RAD = d => d * Math.PI / 180;
         const TO_DEG = r => r * 180 / Math.PI;
 
-        const Φ1 = TO_RAD(LAST_LATITUDE);
-        const Φ2 = TO_RAD(CURRENT_LATITUDE);
-        const Δλ = TO_RAD(CURRENT_LONGITUDE - LAST_LONGITUDE);
+        const Φ1     = TO_RAD(LAST_LATITUDE);
+        const Φ2     = TO_RAD(CURRENT_LATITUDE);
+        const Δλ     = TO_RAD(CURRENT_LONGITUDE - LAST_LONGITUDE);
 
-        const y  = Math.sin(Δλ) * Math.cos(Φ2);
-        const x  = Math.cos(Φ1) * Math.sin(Φ2) - Math.sin(Φ1) * Math.cos(Φ2) * Math.cos(Δλ);
+        const y      = Math.sin(Δλ) * Math.cos(Φ2);
+        const x      = Math.cos(Φ1) * Math.sin(Φ2) - Math.sin(Φ1) * Math.cos(Φ2) * Math.cos(Δλ);
 
         return (TO_DEG(Math.atan2(y,x)) + 360) % 360;
     }
     private calcEachSideDirection(NORMAL_DIRECTION : number) : Record<string,number>{
- 
         return {
                 // 360度を超えたりマイナスになったりしないよう剰余演算
                 rightDir: (NORMAL_DIRECTION + 90) % 360,
                 leftDir: (NORMAL_DIRECTION - 90 + 360) % 360
             };
-       
     }
-    // ＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
-
-    // ==============================================================================
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     private WGS84_offsetPosition(CURRENT_LATITUDE : number, CURRENT_LONGITUDE : number, DIRECTION : number, DISTANCE : number){
         //World Geodetic System 1984    
-
         const EARTH_RADIUS : number = 6378137; // 地球半径（m）
+
 
         const TO_RAD = d => d * Math.PI / 180;
         const TO_DEG = r => r * 180 / Math.PI;
 
-        const br = TO_RAD(DIRECTION); //br = bearing　方位角
-        const φ1 = TO_RAD(CURRENT_LATITUDE);
-        const λ1 = TO_RAD(CURRENT_LONGITUDE);
+        const br     = TO_RAD(DIRECTION); //br = bearing　方位角
+        const φ1     = TO_RAD(CURRENT_LATITUDE);
+        const λ1     = TO_RAD(CURRENT_LONGITUDE);   
 
-        const φ2 = Math.asin(
-            Math.sin(φ1) * Math.cos(DISTANCE / EARTH_RADIUS) +
-            Math.cos(φ1) * Math.sin(DISTANCE / EARTH_RADIUS) * Math.cos(br)
-        );
+        const φ2     = Math.asin(
+                            Math.sin(φ1) * Math.cos(DISTANCE / EARTH_RADIUS) +
+                            Math.cos(φ1) * Math.sin(DISTANCE / EARTH_RADIUS) * Math.cos(br)
+                        );
 
-        const λ2 = λ1 + Math.atan2(
-            Math.sin(br) * Math.sin(DISTANCE / EARTH_RADIUS) * Math.cos(φ1),
-            Math.cos(DISTANCE / EARTH_RADIUS) - Math.sin(φ1) * Math.sin(φ2)
-        );
+        const λ2     = λ1 + Math.atan2(
+                            Math.sin(br) * Math.sin(DISTANCE / EARTH_RADIUS) * Math.cos(φ1),
+                            Math.cos(DISTANCE / EARTH_RADIUS) - Math.sin(φ1) * Math.sin(φ2)
+                        );
 
         return {
             lat: TO_DEG(φ2),
@@ -3274,97 +3114,92 @@ class App{
                     RIGHT_POINT : this.WGS84_offsetPosition(CURRENT_LATITUDE,CURRENT_LONGITUDE,DIRECTION_RECORD.rightDir,DISTANCE)
                 }
     }
+    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // ==============================================================================
 
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    private async loadCityCodeSystem(CURRENT_LATITUDE : number,CURRENT_LONGITUDE : number, EACH_SIDE_POINT_RECORD : Record<string,number>){
+    //======================Load CityData System===============================
+    //=========================================================================
+    loadCityDataSystem(CURRENT_LATITUDE : number, CURRENT_LONGITUDE : number, EACH_SIDE_COORD_RECORD : Record<string,any>) : void{
+        // 市町村を読み込み、それに対応するファイルを読み込む。
+        if(this.isOkToLoadCityCode()){
+            this.loadWaypointGeoJSON_Data(CURRENT_LATITUDE,CURRENT_LONGITUDE,EACH_SIDE_COORD_RECORD)
+        }
+        this.loadWaypointPlaceName();
+    }
+    //~~~~~~~~~~~~~~~[load waypoint Geojson data]~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    private async loadWaypointGeoJSON_Data(CURRENT_LATITUDE : number,CURRENT_LONGITUDE : number, EACH_SIDE_POINT_RECORD : Record<string,number>){
         const CURRENT_CITY_CODE     =  await this.getCityCode(CURRENT_LATITUDE,CURRENT_LONGITUDE);
         const LEFT_POINT_CITY_CODE  =  await this.getCityCode(EACH_SIDE_POINT_RECORD.LEFT_POINT.lat,EACH_SIDE_POINT_RECORD.LEFT_POINT.lng);
         const RIGHT_POINT_CITY_CODE =  await this.getCityCode(EACH_SIDE_POINT_RECORD.RIGHT_POINT.lat,EACH_SIDE_POINT_RECORD.RIGHT_POINT.lng);
         
+        //現在地点の統計地理情報データ（GeoJSON)を読み込む。
         if(CURRENT_CITY_CODE === ""){
             // skip
         }else{
-            this.CURRENT_GEO_DATA = await this.loadGeoData(CURRENT_CITY_CODE);
+            this.CURRENT_GEO_DATA   = await this.loadGeoData(CURRENT_CITY_CODE);
         }
 
-
+        //左方面地点の統計地理情報データ（GeoJSON)を読み込む。
         if(LEFT_POINT_CITY_CODE === CURRENT_CITY_CODE){
-            this.LEFT_GEO_DATA  = this.CURRENT_GEO_DATA;
+            this.LEFT_GEO_DATA      = this.CURRENT_GEO_DATA;
         }else if(LEFT_POINT_CITY_CODE === ""){
             // skip
         }else{
-            this.LEFT_GEO_DATA = await this.loadGeoData(LEFT_POINT_CITY_CODE);
+            this.LEFT_GEO_DATA      = await this.loadGeoData(LEFT_POINT_CITY_CODE);
         }
 
+        //右方面地点の統計地理情報データ（GeoJSON)を読み込む。
         if(RIGHT_POINT_CITY_CODE === CURRENT_CITY_CODE){
-            this.RIGHT_GEO_DATA = this.CURRENT_GEO_DATA;
+            this.RIGHT_GEO_DATA     = this.CURRENT_GEO_DATA;
         }else if(RIGHT_POINT_CITY_CODE === ""){
             // skip
         }else{
-            this.RIGHT_GEO_DATA = await this.loadGeoData(RIGHT_POINT_CITY_CODE);
+            this.RIGHT_GEO_DATA     = await this.loadGeoData(RIGHT_POINT_CITY_CODE);
         }
 
-        this.lastLoadCityCodeTime = Date.now();
+        this.lastLaunchTime__loadWaypointGeoJSON_Data = Date.now();
     }
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    async getCityCode(lat : number , lng : number):Promise<string>{
+        const url   = `https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lng}`;
+        const res   = await fetch(url);
+        const data  = await res.json();
+        
+        this.debug_fetchCounter += 1;
+        console.log(`fetch counter : ${this.debug_fetchCounter}`);
 
+        // チェック：結果が存在するか確認
+        if (data && data.results) {
+            // results はオブジェクト（あるいは配列のような構造）なので、
+            // 一般的には data.results.muniCode でアクセスできますが、
+            // 念のため data.results をコンソールで確認してください。
+            // console.log("取得データ:", data.results);
 
-    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    private getCityOoazaKoazaName(USER_LNG : number, USER_LAT : number) : Record<string,string> | void{
-        if (!this.CURRENT_GEO_DATA) return;
-
-        let minDistance = Infinity;
-        let closestOoazaAndKoaza = "判定中...";
-
-        // 現在地の座標を取り出す
-        // const userLng = this.CURRENT_POINT.geometry.coordinates[0];
-        // const userLat = this.CURRENT_POINT.geometry.coordinates[1];
-        var cityName = "";
-        var prefName = "";
-
-        turf.featureEach(this.CURRENT_GEO_DATA, (feature: any) => {
-            const props = feature.properties;
-         
-            
-            // X_CODE と Y_CODE が存在するかチェック
-            if (props.X_CODE && props.Y_CODE) {
-                // 現在地と、各町の代表地点(X_CODE, Y_CODE)の距離を計算
-                // ※簡易的な計算式ですが、小字レベルなら十分です
-                const dx = USER_LNG - props.X_CODE;
-                const dy = USER_LAT - props.Y_CODE;
-                const distanceSq = dx * dx + dy * dy; // 距離の2乗
-
-                // 一番近い町を更新していく
-                if (distanceSq < minDistance) {
-                    minDistance = distanceSq;
-                    closestOoazaAndKoaza = props.S_NAME;
-                }
-
-                cityName = props.CITY_NAME;
-                prefName = props.PREF_NAME;
-            }
-
-            // console.log(`in turf featureEach, OOAZA and KOAZA : ${closestOoazaAndKoaza}`)
-
-            //  this.current_OoazaKoaza = closestOoazaAndKoaza;
-            //  this.current_cityName      = props.CITY_NAME;
-            //  this.current_prefName      = props.PREF_NAME;
-            // console.log(closestOoazaAndKoaza,props.CITY_NAME,props.PREF_NAME)
-
-        });
-
-        return {
-            OOAZA_AND_KOAZA  : closestOoazaAndKoaza,
-            CITY_NAME        : cityName,
-            PREF_NAME        : prefName
+            return data.results.muniCd; // 統計地理情報システムの市区町村コードである数値（例：06203など）が返ります
         }
-       
-        // console.log("最も近い地点:", this.current_OoazaKoaza);
-    } 
-    private loadCityDataSystem(){
-        const CURRENT_CITY_DATA =  this.getCityOoazaKoazaName(this.CURRENT_POINT.geometry.coordinates[0], this.CURRENT_POINT.geometry.coordinates[1]) as Record<string,string>;
+        
+        return "";
+    }
+    async loadGeoData(CITY_CODE : string){
+        const RESPONSE  = await fetch(`${CITY_CODE}.json`)
+        const DATA      = await RESPONSE.json();
+        // console.log(this.CURRENT_GEO_DATA);
+        return DATA;
+    }
+    isOkToLoadCityCode(){//０．５秒ごとにロードしていたら、chromeがむり！！！ってエラー吐いたので1分毎にする。
+        if(Date.now() - this.lastLaunchTime__loadWaypointGeoJSON_Data  > 1*10*1000){
+            return true;
+        }else{
+            return false;
+        }
+
+    }
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    
+    // ~~~~~~~~~~[load each waypoint of closest place name]~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    private loadWaypointPlaceName(){
+        const CURRENT_CITY_DATA =  this.calcClosestOoazaKoazaName(this.CURRENT_POINT.geometry.coordinates[0], this.CURRENT_POINT.geometry.coordinates[1]) as Record<string,string>;
+        
         if(CURRENT_CITY_DATA !== undefined){
             console.log(CURRENT_CITY_DATA);
         
@@ -3372,40 +3207,62 @@ class App{
             this.current_cityName   =  CURRENT_CITY_DATA.CITY_NAME;
             this.current_prefName   =  CURRENT_CITY_DATA.PREF_NAME;
 
-            const LEFT_CITY_DATA    =  this.getCityOoazaKoazaName(this.LEFT_POINT.geometry.coordinates[0],    this.LEFT_POINT.geometry.coordinates[1]) as Record<string,string>;
+            const LEFT_CITY_DATA    =  this.calcClosestOoazaKoazaName(this.LEFT_POINT.geometry.coordinates[0],    this.LEFT_POINT.geometry.coordinates[1]) as Record<string,string>;
             this.leftKoazaOoaza     =  LEFT_CITY_DATA.OOAZA_AND_KOAZA;
             this.left_cityName      =  LEFT_CITY_DATA.CITY_NAME;
             this.left_prefName      =  LEFT_CITY_DATA.PREF_NAME;
 
-            const RIGHT_CITY_DATA   =  this.getCityOoazaKoazaName(this.RIGHT_POINT.geometry.coordinates[0],   this.RIGHT_POINT.geometry.coordinates[1]) as Record<string,string>;
+            const RIGHT_CITY_DATA   =  this.calcClosestOoazaKoazaName(this.RIGHT_POINT.geometry.coordinates[0],   this.RIGHT_POINT.geometry.coordinates[1]) as Record<string,string>;
             this.rightKoazaOoaza    =  RIGHT_CITY_DATA.OOAZA_AND_KOAZA;
             this.right_cityName     =  RIGHT_CITY_DATA.CITY_NAME;
             this.right_prefName     =  RIGHT_CITY_DATA.PREF_NAME;
         }else{
             console.log(`oh undefined////`)
         }
-
-        // console.log("koaza ooaza under")
-        // console.log(this.currentKoazaOoaza,this.leftKoazaOoaza,this.rightKoazaOoaza)
     }
+    private calcClosestOoazaKoazaName(USER_LNG : number, USER_LAT : number) : Record<string,string> | void{
+        if (!this.CURRENT_GEO_DATA) return;
 
+        let minDistance = Infinity;
+        let closestOoazaAndKoaza = "判定中...";
+
+        var cityName = "";
+        var prefName = "";
+
+        turf.featureEach(this.CURRENT_GEO_DATA, (feature: any) => {
+            const props = feature.properties;
+            
+            // X_CODE と Y_CODE が存在するかチェック
+            if (props.X_CODE && props.Y_CODE) {
+                // 現在地と、各町の代表地点(X_CODE, Y_CODE)の距離を計算
+                // ※簡易的な計算式ですが、小字レベルなら十分です
+                const dx         = USER_LNG - props.X_CODE;
+                const dy         = USER_LAT - props.Y_CODE;
+                const distanceSq = dx * dx + dy * dy; // 距離の2乗
+
+                // 一番近い町を更新していく
+                if (distanceSq < minDistance) {
+                    minDistance  = distanceSq;
+                    closestOoazaAndKoaza = props.S_NAME;
+                }
+
+                cityName = props.CITY_NAME;
+                prefName = props.PREF_NAME;
+            }
+        });
+
+        return {
+            OOAZA_AND_KOAZA  : closestOoazaAndKoaza,
+            CITY_NAME        : cityName,
+            PREF_NAME        : prefName
+        }
+    } 
     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-    
-
+    //=========================================================================
 
 
-    isOoazaAndKoazaSame(OOAZA_KOAZA : string, WAYPOINT_KEY : string) : boolean{
-        return OOAZA_KOAZA === this.previousKoaza[WAYPOINT_KEY] ? true : false;
-    }
-    isCityNameSame(CITY_NAME : string, WAYPOINT_KEY : string) : boolean{
-        return CITY_NAME === this.previousCityName[WAYPOINT_KEY] ? true : false;
-    }
-    isPrefNameSame(PREF_NAME : string, WAYPOINT_KEY : string) : boolean{
-        return PREF_NAME === this.previousPrefName[WAYPOINT_KEY] ? true : false;
-    }
-    //WAYPOINT_KEY : CURRENT, LEFT, RIGHT
-
+    //=========== Announce System ================================================================  
+    //===============================================================================
     Announce(){
         // 1. どこかに変化があるかチェック（前回と全く同じなら何もしない）
         const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
@@ -3416,23 +3273,31 @@ class App{
             return; // どこも変わってなければ終了
         }
 
-
         window.speechSynthesis.cancel();
-        const CONTENT = this.writeAnnounceContent(hasCurrentChanged,hasLeftChanged,hasRightChanged);
 
+        const CONTENT       = this.writeAnnounceContent(hasCurrentChanged,hasLeftChanged,hasRightChanged);
 
-        const UTTR = new SpeechSynthesisUtterance(CONTENT);
-        UTTR.lang = "ja-JP";
+        const UTTR          = new SpeechSynthesisUtterance(CONTENT);
+        UTTR.lang           = "ja-JP";
 
-        const SPEED_SLIDER = document.getElementById("speed-val") as HTMLElement;
-        UTTR.rate = parseFloat(SPEED_SLIDER.textContent);
-        
-        UTTR.pitch = 1.0;
+        const SPEED_SLIDER  = document.getElementById("speed-val") as HTMLElement;
+        UTTR.rate           = parseFloat(SPEED_SLIDER.textContent);
+        UTTR.pitch          = 1.0;
         // console.log("in anouunce true")
-        window.speechSynthesis.speak(UTTR);   
-        
-        this.addHistoryLog();
+        window.speechSynthesis.speak(UTTR);          
     }
+
+    private isOoazaAndKoazaSame(OOAZA_KOAZA : string, WAYPOINT_KEY : string) : boolean{
+        return OOAZA_KOAZA === this.previousKoaza[WAYPOINT_KEY] ? true : false;
+    }
+    private isCityNameSame(CITY_NAME : string, WAYPOINT_KEY : string) : boolean{
+        return CITY_NAME === this.previousCityName[WAYPOINT_KEY] ? true : false;
+    }
+    private isPrefNameSame(PREF_NAME : string, WAYPOINT_KEY : string) : boolean{
+        return PREF_NAME === this.previousPrefName[WAYPOINT_KEY] ? true : false;
+    }
+    //WAYPOINT_KEY : CURRENT, LEFT, RIGHT
+
     private writeAnnounceContent(hasCurrentChanged: boolean, hasLeftChanged: boolean, hasRightChanged: boolean) {
         const REST = "、、、、、、";
 
@@ -3459,7 +3324,7 @@ class App{
                     city: this.right_cityName,   
                     type: "RIGHT" 
                 }
-            };
+        };
 
         // 1. 変化があった方位のキーを配列に入れる (例: ["CURRENT", "LEFT"])
         const changedKeys: ("CURRENT" | "LEFT" | "RIGHT")[] = [];
@@ -3579,6 +3444,10 @@ class App{
         
         return [`${ooaza}${REST}`, ooaza];
     }
+    //===============================================================================
+
+
+    
     private updatePreviousePlaceNames(){
         // 履歴の更新
         const sides = ["CURRENT", "LEFT", "RIGHT"] as const;
@@ -3597,8 +3466,21 @@ class App{
     }
 
     private playInNewCitySound(){
+
+
         if(this.isPrefNameSame(this.current_prefName,"CURRENT") == false){
-            new Audio("inNewCity.mp3").play();
+            switch(this.current_prefName){
+                case "山形県":
+                     new Audio("YamagataSong_Mogamigawa.mp3").play();
+                     break;
+                case "秋田県":
+                    new Audio("AkitaSongNo1No2.mp3").play();
+                    break;
+                default:
+                    new Audio("inNewPref.mp3").play();
+            }
+            
+            
         }else if (this.isCityNameSame(this.current_cityName,"CURRENT")== false){
             new Audio("inNewCity.mp3").play();
         }
@@ -3664,6 +3546,120 @@ class App{
         this.FIREBASE_FUNCTION.uploadData(`yamato/history/${this.APP_START_TIME}`,LOG.innerHTML);
         
     }
+    //===========================================================================
+    //====================================================================================
+    
+
+
+
+
+
+
+    //other function in Init
+    attachEvent(){
+        const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
+        INTERVAL_INPUT.addEventListener("input",()=>{
+            this.intervalSystem();
+        })
+
+        const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
+        MODE_INPUT.addEventListener("input",()=>{
+            this.loadUserParameterAndInput();
+        })
+    }
+
+    intervalSystem(){
+        if(this.intervalID){
+            this.resetInterval();
+            this.setNewInterval();
+        }else{
+            this.setNewInterval();
+        }
+    }
+    private setNewInterval(){
+        const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
+        const INTERVAL_SECOND   = parseInt(INTERVAL_INPUT.value)*1000; 
+        this.intervalID = setInterval(() => {
+                                                    this.naviMainSystem();
+                                            }, INTERVAL_SECOND);
+    }
+    private resetInterval(){
+        clearInterval(this.intervalID);
+        this.intervalID = null;
+    }
+
+    private async loadUserParameterAndInput() {
+        try {
+            // 1. データのダウンロードを確実に待機
+            const MODE_INPUT                = document.getElementById("mode-input")      as HTMLInputElement;
+            const MODE                      = MODE_INPUT.value;
+            const [accuracyData, distanceData,speedData,intervalData] = await Promise.all([
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/accuracyThreshold`  ),
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/rightLeftDistance`  ),
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/speachSpeed`        ),
+                this.FIREBASE_FUNCTION.downloadData(`yamato/${MODE}/interval`           )
+            ]);
+
+            // 2. 要素を HTMLInputElement として取得
+            const THRESHOLD_EL      = document.getElementById("threshold-input")    as HTMLInputElement;
+            const DISTANCE_EL       = document.getElementById("distance-input")     as HTMLInputElement;
+            const SPEED_DISPLAY     = document.getElementById("speed-input")        as HTMLInputElement;
+            const SPEED_VAL         = document.getElementById("speed-val")          as HTMLElement;
+            const INTERVAL_INPUT    = document.getElementById("interval-input")     as HTMLInputElement;
+
+            // 3. .value を使って値をセット（データがない場合はデフォルト値を表示）
+            if (THRESHOLD_EL) {
+                THRESHOLD_EL.value = accuracyData !== undefined ? accuracyData : "100";
+                // 視覚的エフェクトをトリガー
+                THRESHOLD_EL.classList.add('setting-updated');
+            }
+
+            if (DISTANCE_EL) {
+                DISTANCE_EL.value = distanceData !== undefined ? distanceData : "100";
+                // 視覚的エフェクトをトリガー
+                DISTANCE_EL.classList.add('setting-updated');
+            }
+
+            if(SPEED_DISPLAY){
+                SPEED_DISPLAY.value   = speedData;
+                SPEED_VAL.textContent = speedData !== undefined ? speedData : "1.0";
+
+                SPEED_DISPLAY.classList.add("setting-updated");
+                
+            }
+
+            if (INTERVAL_INPUT) {
+                INTERVAL_INPUT.value = intervalData !== undefined ? intervalData : "1";
+                // 視覚的エフェクトをトリガー
+                INTERVAL_INPUT.classList.add('setting-updated');
+            }
+
+
+            console.log("Firebaseからのロード完了:", { accuracyData, distanceData });
+
+        } catch (error) {
+            console.error("データの読み込み中にエラーが発生しました:", error);
+        }
+    }
+
+    private setupSettingEffect() {
+        const inputs = ['threshold-input', 'distance-input',"interval-input"];
+        
+        inputs.forEach(id => {
+            const el = document.getElementById(id) as HTMLInputElement;
+            if (!el) return;
+
+            el.addEventListener('change', () => {
+                // クラスを一度消して再付与することで、連続変更でもアニメーションを走らせる
+                el.classList.remove('setting-updated');
+                void el.offsetWidth; // リフローを強制（アニメーションのリセットに必要）
+                el.classList.add('setting-updated');
+                
+                console.log(`${id} が変更されました: ${el.value}`);
+            });
+        });
+    }
+
 
 
 
