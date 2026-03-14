@@ -3473,9 +3473,7 @@ class App{
                 case "山形県":
                      new Audio("YamagataSong_Mogamigawa.mp3").play();
                      break;
-                case "秋田県":
-                    new Audio("AkitaSongNo1No2.mp3").play();
-                    break;
+
                 default:
                     new Audio("inNewPref.mp3").play();
             }
@@ -3533,13 +3531,19 @@ class App{
     }
 
     addHistoryLog(){
-        const LOG       = document.getElementById('history-log') as HTMLElement;
-        const li        = document.createElement('li');
-        const SPACE     = "&nbsp;".repeat(17);
-        li.innerHTML    = `${new Date().toLocaleTimeString()} - [現在地点]${this.current_prefName} ${this.current_cityName} ${this.currentKoazaOoaza}<br>${SPACE}[左方面地点]${this.left_prefName} ${this.left_cityName} ${this.leftKoazaOoaza}<br>${SPACE}[右方面地点]${this.right_prefName} ${this.right_cityName} ${this.rightKoazaOoaza}`;
-        LOG?.prepend(li);
+        const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
+        if(hasCurrentChanged){
+            const LOG       = document.getElementById('history-log') as HTMLElement;
+            const li        = document.createElement('li');
+            const SPACE     = "&nbsp;".repeat(17);
+            li.innerHTML    = `${new Date().toLocaleTimeString()} - [現在地点]${this.current_prefName} ${this.current_cityName} ${this.currentKoazaOoaza}<br>${SPACE}[左方面地点]${this.left_prefName} ${this.left_cityName} ${this.leftKoazaOoaza}<br>${SPACE}[右方面地点]${this.right_prefName} ${this.right_cityName} ${this.rightKoazaOoaza}`;
+            LOG?.prepend(li);
 
-        this.sendHistoryLogToFirebase();
+            this.sendHistoryLogToFirebase();
+        }
+
+
+        
     }
     sendHistoryLogToFirebase(){
         const LOG = document.getElementById('history-log') as HTMLElement;

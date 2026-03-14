@@ -1625,15 +1625,12 @@ class App {
                     const EACH_SIDE_COORD_RECORD = this.produceEachSideCoordRecord(CURRENT_LONGITUDE, CURRENT_LATITUDE);
                     this.waypointCoordsCalcSystem(CURRENT_LONGITUDE, CURRENT_LATITUDE, EACH_SIDE_COORD_RECORD);
                     this.loadCityDataSystem(CURRENT_LATITUDE, CURRENT_LONGITUDE, EACH_SIDE_COORD_RECORD);
-                    
+                    this.Announce();
                     if (this.lastLongitude == 0 && this.lastLatitude == 0) {
                     }
                     else {
                         this.playInNewCitySound();
                     }
-
-                    this.Announce();
-                    
                     this.addHistoryLog();
                     this.updatePreviousePlaceNames();
                     this.DisplayInfo();
@@ -2025,9 +2022,6 @@ class App {
                 case "山形県":
                     new Audio("YamagataSong_Mogamigawa.mp3").play();
                     break;
-                case "秋田県":
-                    new Audio("AkitaSongNo1No2.mp3").play();
-                    break;
                 default:
                     new Audio("inNewPref.mp3").play();
             }
@@ -2064,12 +2058,15 @@ class App {
         LATITUDE_DISPLAY.innerHTML = this.CURRENT_POINT.geometry.coordinates[1].toString();
     }
     addHistoryLog() {
-        const LOG = document.getElementById('history-log');
-        const li = document.createElement('li');
-        const SPACE = "&nbsp;".repeat(17);
-        li.innerHTML = `${new Date().toLocaleTimeString()} - [現在地点]${this.current_prefName} ${this.current_cityName} ${this.currentKoazaOoaza}<br>${SPACE}[左方面地点]${this.left_prefName} ${this.left_cityName} ${this.leftKoazaOoaza}<br>${SPACE}[右方面地点]${this.right_prefName} ${this.right_cityName} ${this.rightKoazaOoaza}`;
-        LOG === null || LOG === void 0 ? void 0 : LOG.prepend(li);
-        this.sendHistoryLogToFirebase();
+        const hasCurrentChanged = !this.isOoazaAndKoazaSame(this.currentKoazaOoaza, "CURRENT");
+        if (hasCurrentChanged) {
+            const LOG = document.getElementById('history-log');
+            const li = document.createElement('li');
+            const SPACE = "&nbsp;".repeat(17);
+            li.innerHTML = `${new Date().toLocaleTimeString()} - [現在地点]${this.current_prefName} ${this.current_cityName} ${this.currentKoazaOoaza}<br>${SPACE}[左方面地点]${this.left_prefName} ${this.left_cityName} ${this.leftKoazaOoaza}<br>${SPACE}[右方面地点]${this.right_prefName} ${this.right_cityName} ${this.rightKoazaOoaza}`;
+            LOG === null || LOG === void 0 ? void 0 : LOG.prepend(li);
+            this.sendHistoryLogToFirebase();
+        }
     }
     sendHistoryLogToFirebase() {
         const LOG = document.getElementById('history-log');
@@ -2244,7 +2241,6 @@ class History {
             <span class="calendar-icon">📅</span>
             <span class="date-text">${dateKey}</span>
         </div>
-
         `;
         LIST.className = "history-summary-item";
         return LIST;
